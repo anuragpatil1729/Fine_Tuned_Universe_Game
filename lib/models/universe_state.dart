@@ -1,5 +1,4 @@
-// WHAT: Added `dna` field to the state model.
-// WHY: To support deterministic positioning in the Observatory and universe sharing.
+// FEATURE: Civilization Layer // WHAT CHANGED: Added cooperationIndex and energyConsumption fields. // WHY: To track civilization-specific tuning parameters in the second phase of the game.
 
 import '../core/constants.dart';
 
@@ -9,6 +8,8 @@ class UniverseState {
   final double nuclearForce;
   final double entropyRate;
   final double darkEnergyPressure;
+  final double cooperationIndex;
+  final double energyConsumption;
   final String dna;
   final UniverseOutcome outcome;
   final UniverseStage stage;
@@ -20,6 +21,8 @@ class UniverseState {
     required this.nuclearForce,
     this.entropyRate = 0.5,
     this.darkEnergyPressure = 0.5,
+    this.cooperationIndex = 0.5,
+    this.energyConsumption = 0.5,
     this.dna = '',
     required this.outcome,
     required this.stage,
@@ -32,6 +35,8 @@ class UniverseState {
     double? nuclearForce,
     double? entropyRate,
     double? darkEnergyPressure,
+    double? cooperationIndex,
+    double? energyConsumption,
     String? dna,
     UniverseOutcome? outcome,
     UniverseStage? stage,
@@ -42,6 +47,8 @@ class UniverseState {
       nuclearForce: nuclearForce ?? this.nuclearForce,
       entropyRate: entropyRate ?? this.entropyRate,
       darkEnergyPressure: darkEnergyPressure ?? this.darkEnergyPressure,
+      cooperationIndex: cooperationIndex ?? this.cooperationIndex,
+      energyConsumption: energyConsumption ?? this.energyConsumption,
       dna: dna ?? this.dna,
       outcome: outcome ?? this.outcome,
       stage: stage ?? this.stage,

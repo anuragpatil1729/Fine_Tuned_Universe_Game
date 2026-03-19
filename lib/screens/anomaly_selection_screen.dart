@@ -1,9 +1,4 @@
-// CHANGES MADE:
-// 1. Implemented the `AnomalySelectionScreen` for choosing between Normal and Challenge runs.
-// 2. Used a `PageView` with custom `AnomalyCard` widgets for the 5 challenge types.
-// 3. Added visual feedback for completed anomalies (COMPLETED stamp).
-// 4. Integrated with `AnomalyService` to trigger the appropriate run initialization.
-// 5. Styled with Orbitron and glassmorphism to maintain the cosmic aesthetic.
+// FEATURE: Civilization Layer // WHAT CHANGED: Added "The Warring Factions" anomaly which only appears after the civilization layer is unlocked. // WHY: To provide a high-level challenge for players who have mastered the core simulation.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -33,7 +28,13 @@ class _AnomalySelectionScreenState extends State<AnomalySelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final anomalyService = context.watch<AnomalyService>();
-    final anomalies = anomalyService.allAnomalies;
+    final simService = context.watch<SimulationService>();
+    
+    // Filter anomalies: Warring Factions only if civilization is unlocked
+    final availableAnomalies = anomalyService.allAnomalies.where((a) {
+      if (a.id == "warring_factions") return simService.civilizationUnlocked;
+      return true;
+    }).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFF050505),
@@ -55,14 +56,14 @@ class _AnomalySelectionScreenState extends State<AnomalySelectionScreen> {
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 500),
                 child: _isAnomalyMode 
-                  ? _buildAnomalySelector(anomalies)
+                  ? _buildAnomalySelector(availableAnomalies)
                   : _buildNormalModeInfo(),
               ),
             ),
             Padding(
               padding: const EdgeInsets.all(40),
               child: ElevatedButton(
-                onPressed: () => _beginRun(context),
+                onPressed: () => _beginRun(context, availableAnomalies),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.black,
@@ -134,7 +135,7 @@ class _AnomalySelectionScreenState extends State<AnomalySelectionScreen> {
             const Icon(Icons.public, color: Colors.white24, size: 80),
             const SizedBox(height: 30),
             Text(
-              "STARDARD SIMULATION",
+              "STANDARD SIMULATION",
               style: GoogleFonts.orbitron(color: Colors.white, fontSize: 18),
             ),
             const SizedBox(height: 20),
@@ -159,12 +160,12 @@ class _AnomalySelectionScreenState extends State<AnomalySelectionScreen> {
     );
   }
 
-  void _beginRun(BuildContext context) {
+  void _beginRun(BuildContext context, List<Anomaly> anomalies) {
     final anomalyService = context.read<AnomalyService>();
     final simService = context.read<SimulationService>();
 
     if (_isAnomalyMode) {
-      final selectedAnomaly = anomalyService.allAnomalies[_pageController.page?.round() ?? 0];
+      final selectedAnomaly = anomalies[_pageController.page?.round() ?? 0];
       anomalyService.startAnomalyRun(selectedAnomaly.id);
     } else {
       anomalyService.clearAnomaly();

@@ -1,3 +1,5 @@
+// FEATURE: Civilization Layer // WHAT CHANGED: Converted to StatefulWidget, integrated ConsequenceTicker, and added the Civilization stages (Dawn, Tech, Legacy). Added visual scale "pulse" on slider changes. // WHY: To support the expanded game stages and provide real-time causal feedback to the player.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -9,6 +11,7 @@ import '../widgets/constant_slider.dart';
 import '../widgets/universe_visual.dart';
 import '../widgets/multiverse_observatory.dart';
 import '../widgets/whisper_bar.dart';
+import '../widgets/consequence_ticker.dart';
 import 'codex_screen.dart';
 import 'observatory_screen.dart';
 import 'result_screen.dart';
@@ -22,9 +25,10 @@ class SimulationScreen extends StatefulWidget {
 
 class _SimulationScreenState extends State<SimulationScreen> {
   bool _navigationScheduled = false;
+  double _visualScale = 1.0;
 
   void _maybeNavigateToResult(UniverseStage stage) {
-    if (stage == UniverseStage.cosmicFate && !_navigationScheduled) {
+    if ((stage == UniverseStage.cosmicFate || stage == UniverseStage.cosmicLegacy) && !_navigationScheduled) {
       _navigationScheduled = true;
       Future.delayed(const Duration(seconds: 4), () {
         if (mounted) {
@@ -36,6 +40,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
     }
   }
 
+  void _triggerPulse() {
+    setState(() => _visualScale = 1.02);
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) setState(() => _visualScale = 1.0);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer3<SimulationService, CodexService, AnomalyService>(
@@ -43,7 +54,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
         final state = sim.currentUniverse;
         final activeAnomaly = anomaly.activeAnomaly;
 
-        if (state.stage == UniverseStage.cosmicFate) {
+        if (state.stage == UniverseStage.cosmicFate || state.stage == UniverseStage.cosmicLegacy) {
           _maybeNavigateToResult(state.stage);
         }
 
@@ -54,22 +65,18 @@ class _SimulationScreenState extends State<SimulationScreen> {
             elevation: 0,
             automaticallyImplyLeading: false,
             actions: [
-              // Observatory button
               IconButton(
                 icon: const Icon(Icons.scatter_plot, color: Colors.white38),
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const ObservatoryScreen()),
+                  MaterialPageRoute(builder: (_) => const ObservatoryScreen()),
                 ),
               ),
-              // Codex button with notification badge
               Stack(
                 children: [
                   IconButton(
                     icon: const Icon(Icons.menu_book, color: Colors.white70),
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) => const CodexScreen()),
+                      MaterialPageRoute(builder: (_) => const CodexScreen()),
                     ),
                   ),
                   if (codex.hasNewEntries)
@@ -98,6 +105,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
                   children: [
                     if (activeAnomaly?.id == "dark_tide")
                       _buildPressureBar(state.darkEnergyPressure),
+                    
                     Expanded(
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 600),
@@ -105,8 +113,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
                           return FadeTransition(
                             opacity: animation,
                             child: ScaleTransition(
-                              scale: Tween<double>(begin: 0.95, end: 1.0)
-                                  .animate(animation),
+                              scale: Tween<double>(begin: 0.95, end: 1.0).animate(animation),
                               child: child,
                             ),
                           );
@@ -115,28 +122,39 @@ class _SimulationScreenState extends State<SimulationScreen> {
                           key: ValueKey(state.stage),
                           children: [
                             const SizedBox(height: 10),
-                            _StaggeredTitle(
-                                text: _getStageTitle(state.stage)),
+                            _StaggeredTitle(text: _getStageTitle(state.stage)),
                             const SizedBox(height: 10),
                             Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 40),
+                              padding: const EdgeInsets.symmetric(horizontal: 40),
                               child: Text(
                                 _getStageDescription(state.stage),
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    color: Colors.white38, fontSize: 12),
+                                style: const TextStyle(color: Colors.white38, fontSize: 12),
                               ),
+                            ),
+                            const SizedBox(height: 10),
+                            ConsequenceTicker(
+                              stage: state.stage,
+                              gravity: state.gravity,
+                              nuclear: state.nuclearForce,
+                              em: state.emForce,
+                              entropy: state.entropyRate,
+                              darkEnergy: state.darkEnergyPressure,
                             ),
                             Expanded(
                               child: Center(
-                                child: UniverseVisual(
-                                  stage: state.stage,
-                                  gravity: state.gravity,
-                                  nuclear: state.nuclearForce,
-                                  em: state.emForce,
-                                  entropy: state.entropyRate,
-                                  darkEnergy: state.darkEnergyPressure,
+                                child: AnimatedScale(
+                                  scale: _visualScale,
+                                  duration: const Duration(milliseconds: 150),
+                                  curve: Curves.easeOut,
+                                  child: UniverseVisual(
+                                    stage: state.stage,
+                                    gravity: state.gravity,
+                                    nuclear: state.nuclearForce,
+                                    em: state.emForce,
+                                    entropy: state.entropyRate,
+                                    darkEnergy: state.darkEnergyPressure,
+                                  ),
                                 ),
                               ),
                             ),
@@ -144,20 +162,19 @@ class _SimulationScreenState extends State<SimulationScreen> {
                         ),
                       ),
                     ),
+
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: const BoxDecoration(
                         color: Colors.black54,
-                        borderRadius:
-                        BorderRadius.vertical(top: Radius.circular(30)),
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           WhisperBar(whisper: sim.currentWhisper),
                           const SizedBox(height: 10),
-                          if (state.stage !=
-                              UniverseStage.cosmicFate) ...[
+                          if (state.stage != UniverseStage.cosmicFate && state.stage != UniverseStage.cosmicLegacy) ...[
                             _buildActiveSlider(sim),
                             const SizedBox(height: 20),
                             ElevatedButton(
@@ -165,20 +182,13 @@ class _SimulationScreenState extends State<SimulationScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 50, vertical: 15),
-                                shape: RoundedRectangleBorder(
-                                    borderRadius:
-                                    BorderRadius.circular(30)),
+                                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                               ),
                               child: Text(
-                                state.stage ==
-                                    UniverseStage.stellarDeath
-                                    ? "WITNESS DESTINY"
-                                    : "NEXT ERA",
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 2),
+                                (state.stage == UniverseStage.stellarDeath || state.stage == UniverseStage.technologicalAge)
+                                    ? "WITNESS DESTINY" : "NEXT ERA",
+                                style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2),
                               ),
                             ),
                           ],
@@ -204,23 +214,15 @@ class _SimulationScreenState extends State<SimulationScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("DARK TIDE PRESSURE",
-                  style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 10,
-                      letterSpacing: 1)),
-              Text("${(pressure * 100).toInt()}%",
-                  style: TextStyle(
-                      color: danger ? Colors.red : Colors.white38,
-                      fontSize: 10)),
+              const Text("DARK TIDE PRESSURE", style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1)),
+              Text("${(pressure * 100).toInt()}%", style: TextStyle(color: danger ? Colors.red : Colors.white38, fontSize: 10)),
             ],
           ),
           const SizedBox(height: 5),
           LinearProgressIndicator(
             value: pressure / 0.8,
             backgroundColor: Colors.white10,
-            valueColor: AlwaysStoppedAnimation<Color>(
-                danger ? Colors.red : Colors.cyanAccent),
+            valueColor: AlwaysStoppedAnimation<Color>(danger ? Colors.red : Colors.cyanAccent),
           ),
         ],
       ),
@@ -236,7 +238,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
           value: state.gravity,
           safeMin: sim.effectiveGravityMin,
           safeMax: sim.effectiveGravityMax,
-          onChanged: sim.updateGravity,
+          onChanged: (v) { sim.updateGravity(v); _triggerPulse(); },
           isLocked: sim.isLocked("gravity"),
         );
       case UniverseStage.stellarAge:
@@ -245,7 +247,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
           value: state.nuclearForce,
           safeMin: sim.effectiveNuclearMin,
           safeMax: sim.effectiveNuclearMax,
-          onChanged: sim.updateNuclearForce,
+          onChanged: (v) { sim.updateNuclearForce(v); _triggerPulse(); },
           isLocked: sim.isLocked("nuclear"),
         );
       case UniverseStage.galacticAge:
@@ -254,7 +256,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
           value: state.emForce,
           safeMin: sim.effectiveEmMin,
           safeMax: sim.effectiveEmMax,
-          onChanged: sim.updateEMForce,
+          onChanged: (v) { sim.updateEMForce(v); _triggerPulse(); },
           isLocked: sim.isLocked("em"),
         );
       case UniverseStage.lifeAge:
@@ -263,7 +265,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
           value: state.entropyRate,
           safeMin: sim.effectiveEntropyMin,
           safeMax: sim.effectiveEntropyMax,
-          onChanged: sim.updateEntropyRate,
+          onChanged: (v) { sim.updateEntropyRate(v); _triggerPulse(); },
           isLocked: sim.isLocked("entropy"),
         );
       case UniverseStage.stellarDeath:
@@ -272,8 +274,26 @@ class _SimulationScreenState extends State<SimulationScreen> {
           value: state.darkEnergyPressure,
           safeMin: sim.effectiveDarkEnergyMin,
           safeMax: sim.effectiveDarkEnergyMax,
-          onChanged: sim.updateDarkEnergy,
+          onChanged: (v) { sim.updateDarkEnergy(v); _triggerPulse(); },
           isLocked: sim.isLocked("darkEnergy"),
+        );
+      case UniverseStage.civilizationDawn:
+        return ConstantSlider(
+          label: "COOPERATION INDEX",
+          value: state.cooperationIndex,
+          safeMin: sim.effectiveCooperationMin,
+          safeMax: sim.effectiveCooperationMax,
+          onChanged: (v) { sim.updateCooperation(v); _triggerPulse(); },
+          isLocked: sim.isLocked("cooperation"),
+        );
+      case UniverseStage.technologicalAge:
+        return ConstantSlider(
+          label: "ENERGY CONSUMPTION",
+          value: state.energyConsumption,
+          safeMin: sim.effectiveEnergyMin,
+          safeMax: sim.effectiveEnergyMax,
+          onChanged: (v) { sim.updateEnergyConsumption(v); _triggerPulse(); },
+          isLocked: sim.isLocked("energy"),
         );
       default:
         return const SizedBox.shrink();
@@ -287,24 +307,24 @@ class _SimulationScreenState extends State<SimulationScreen> {
       case UniverseStage.galacticAge: return "GALACTIC AGE";
       case UniverseStage.lifeAge: return "LIFE AGE";
       case UniverseStage.stellarDeath: return "STELLAR DEATH";
+      case UniverseStage.civilizationDawn: return "CIVILIZATION DAWN";
+      case UniverseStage.technologicalAge: return "TECHNOLOGICAL AGE";
+      case UniverseStage.cosmicLegacy: return "COSMIC LEGACY";
       case UniverseStage.cosmicFate: return "COSMIC FATE";
     }
   }
 
   String _getStageDescription(UniverseStage stage) {
     switch (stage) {
-      case UniverseStage.cosmicDawn:
-        return "The singularity expands. Establish the foundation of order.";
-      case UniverseStage.stellarAge:
-        return "Hydrogen ignites. The first light negotiates with the dark.";
-      case UniverseStage.galacticAge:
-        return "Matter clusters into spiral islands. Atoms seek resonance.";
-      case UniverseStage.lifeAge:
-        return "The mirror of consciousness awakens. Complexity fights entropy.";
-      case UniverseStage.stellarDeath:
-        return "Fuel runs dry. The final expansion begins its acceleration.";
-      case UniverseStage.cosmicFate:
-        return "The arc reaches its conclusion. Observe your handiwork.";
+      case UniverseStage.cosmicDawn: return "The singularity expands. Establish the foundation of order.";
+      case UniverseStage.stellarAge: return "Hydrogen ignites. The first light negotiates with the dark.";
+      case UniverseStage.galacticAge: return "Matter clusters into spiral islands. Atoms seek resonance.";
+      case UniverseStage.lifeAge: return "The mirror of consciousness awakens. Complexity fights entropy.";
+      case UniverseStage.stellarDeath: return "Fuel runs dry. The final expansion begins its acceleration.";
+      case UniverseStage.civilizationDawn: return "Intelligence emerges. Cooperation determines if knowledge becomes power or conflict.";
+      case UniverseStage.technologicalAge: return "The species reaches for the stars. Energy consumption will define their legacy.";
+      case UniverseStage.cosmicLegacy: return "The final chapter. What does this civilization leave behind?";
+      case UniverseStage.cosmicFate: return "The arc reaches its conclusion. Observe your handiwork.";
     }
   }
 }
@@ -317,8 +337,7 @@ class _StaggeredTitle extends StatefulWidget {
   State<_StaggeredTitle> createState() => _StaggeredTitleState();
 }
 
-class _StaggeredTitleState extends State<_StaggeredTitle>
-    with TickerProviderStateMixin {
+class _StaggeredTitleState extends State<_StaggeredTitle> with TickerProviderStateMixin {
   late List<AnimationController> _controllers;
   late List<Animation<double>> _animations;
 
@@ -331,18 +350,15 @@ class _StaggeredTitleState extends State<_StaggeredTitle>
   void _initAnimations() {
     _controllers = List.generate(
       widget.text.length,
-          (index) => AnimationController(
-          vsync: this, duration: const Duration(milliseconds: 300)),
+      (index) => AnimationController(vsync: this, duration: const Duration(milliseconds: 300)),
     );
-    _animations = _controllers
-        .map((c) => Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: c, curve: Curves.easeIn)))
-        .toList();
+    _animations = _controllers.map((c) => Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: c, curve: Curves.easeIn))).toList();
     _play();
   }
 
   void _play() async {
     for (var c in _controllers) {
+      if (!mounted) return;
       c.forward();
       await Future.delayed(const Duration(milliseconds: 80));
     }
@@ -376,12 +392,7 @@ class _StaggeredTitleState extends State<_StaggeredTitle>
           opacity: _animations[index],
           child: Text(
             widget.text[index],
-            style: GoogleFonts.orbitron(
-              color: Colors.white,
-              fontSize: 24,
-              letterSpacing: 4,
-              fontWeight: FontWeight.bold,
-            ),
+            style: GoogleFonts.orbitron(color: Colors.white, fontSize: 24, letterSpacing: 4, fontWeight: FontWeight.bold),
           ),
         );
       }),

@@ -1,8 +1,4 @@
-// CHANGES MADE:
-// 1. Updated `main.dart` to include `MultiProvider` for all services.
-// 2. Initialized `CodexService` and `AnomalyService` as they are dependencies for `SimulationService`.
-// 3. Registered `SimulationService` using the correctly injected constructor.
-// 4. Maintained the theme and root navigation to `HomeScreen`.
+// FEATURE: Session Persistence // WHAT CHANGED: Implemented `_AppLoader` to handle asynchronous service initialization (loading history from storage) before the UI is rendered. Integrated `MultiProvider` with `ProxyProvider` for dependency injection. // WHY: To ensure that the player's saved multiverse history is available immediately upon app launch and to maintain a clean service architecture.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,6 +10,7 @@ import 'services/anomaly_service.dart';
 import 'screens/home_screen.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(
     MultiProvider(
       providers: [
@@ -30,9 +27,50 @@ void main() {
           update: (context, codex, anomaly, previous) => previous ?? SimulationService(codex, anomaly),
         ),
       ],
-      child: const FineTunedUniverseApp(),
+      child: const _AppLoader(),
     ),
   );
+}
+
+class _AppLoader extends StatefulWidget {
+  const _AppLoader();
+
+  @override
+  State<_AppLoader> createState() => _AppLoaderState();
+}
+
+class _AppLoaderState extends State<_AppLoader> {
+  late Future<void> _init;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start the persistent data load
+    _init = context.read<SimulationService>().initAsync();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: _init,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: Scaffold(
+              backgroundColor: Color(0xFF050505),
+              body: Center(
+                child: CircularProgressIndicator(
+                  color: Colors.white24,
+                ),
+              ),
+            ),
+          );
+        }
+        return const FineTunedUniverseApp();
+      },
+    );
+  }
 }
 
 class FineTunedUniverseApp extends StatelessWidget {

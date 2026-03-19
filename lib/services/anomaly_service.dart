@@ -1,8 +1,4 @@
-// WHAT CHANGED:
-// 1. Created `AnomalyService` to handle special challenge runs.
-// 2. Implemented the 5 specific anomalies: Iron Star, Frozen Clock, Dark Tide, Mirror Universe, and Silent Bang.
-// 3. Added persistence for anomaly completions using SharedPreferences.
-// 4. Integrated with `CodexService` to trigger lore unlocks upon challenge completion.
+// FEATURE: Civilization Layer // WHAT CHANGED: Added "THE WARRING FACTIONS" anomaly and implemented `resetAll()`. // WHY: To expand challenge runs into the civilization phase and provide a way to clear all progress.
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +9,7 @@ import 'codex_service.dart';
 class AnomalyService extends ChangeNotifier {
   final CodexService _codexService;
   Anomaly? _activeAnomaly;
+  
   final List<Anomaly> _anomalies = [
     Anomaly(
       id: "iron_star",
@@ -57,6 +54,15 @@ class AnomalyService extends ChangeNotifier {
       lockedConstants: {"gravity": 0.20},
       badgeLabel: "Architect of Whispers",
     ),
+    Anomaly(
+      id: "warring_factions",
+      name: "THE WARRING FACTIONS",
+      flavorText: "They never learned to trust each other.",
+      description: "Cooperation index locked at 0.20. Achieve Transcendence despite internal conflict.",
+      type: AnomalyType.lockedParameter,
+      lockedConstants: {"cooperation": 0.20},
+      badgeLabel: "Unlikely Savior",
+    ),
   ];
 
   Anomaly? get activeAnomaly => _activeAnomaly;
@@ -91,13 +97,14 @@ class AnomalyService extends ChangeNotifier {
 
     bool isSuccess = false;
     
-    // Success conditions for specific anomalies
     if (_activeAnomaly!.id == "frozen_clock") {
-      // Prompt requirement: "requires ALL other constants to be centered within ±0.03 of their midpoint"
-      // This logic will be handled in SimulationService's final check, but we flag success here if Eternal Garden achieved
       if (outcome == UniverseOutcome.eternalGarden) isSuccess = true;
+    } else if (_activeAnomaly!.id == "warring_factions") {
+      if (outcome == UniverseOutcome.transcendence) isSuccess = true;
     } else {
-      if (outcome == UniverseOutcome.eternalGarden) isSuccess = true;
+      if (outcome == UniverseOutcome.eternalGarden || outcome == UniverseOutcome.transcendence) {
+        isSuccess = true;
+      }
     }
 
     if (isSuccess) {
@@ -107,6 +114,15 @@ class AnomalyService extends ChangeNotifier {
         _anomalies[index] = _anomalies[index].copyWith(isCompleted: true);
         await prefs.setBool('anomaly_done_${_activeAnomaly!.id}', true);
       }
+    }
+    notifyListeners();
+  }
+
+  Future<void> resetAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (int i = 0; i < _anomalies.length; i++) {
+      _anomalies[i] = _anomalies[i].copyWith(isCompleted: false);
+      await prefs.remove('anomaly_done_${_anomalies[i].id}');
     }
     notifyListeners();
   }

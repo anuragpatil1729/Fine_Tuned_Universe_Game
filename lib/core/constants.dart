@@ -1,15 +1,11 @@
-// CHANGES MADE:
-// 1. Replaced UniverseStage with the new lifecycle-based stages (cosmicDawn to cosmicFate).
-// 2. Replaced UniverseOutcome with the four new thematic endings.
-// 3. Added entropyRate and darkEnergy threshold constants.
-// 4. Added semantic color mappings for the new endings.
+// FEATURE: Civilization Layer // WHAT CHANGED: Added civilization stages and outcomes, and new physical constants. // WHY: To support the mid-game expansion that triggers after achieving an Eternal Garden.
 
 import 'package:flutter/material.dart';
 
 class GameConstants {
   static const String appName = 'Fine-Tuned Universe';
 
-  // Thresholds for simulation (0.0 to 1.0)
+  // Core Simulation Thresholds (0.0 to 1.0)
   static const double gravityMin = 0.35;
   static const double gravityMax = 0.65;
   
@@ -25,6 +21,13 @@ class GameConstants {
   static const double darkEnergyMin = 0.40;
   static const double darkEnergyMax = 0.60;
 
+  // Civilization Layer Thresholds
+  static const double cooperationMin = 0.40;
+  static const double cooperationMax = 0.65;
+  static const double energyConsumptionMin = 0.35;
+  static const double energyConsumptionMax = 0.55;
+
+  // Visual Styling
   static const Color spaceBlack = Color(0xFF050505);
   static const Color cosmicPurple = Color(0xFF2D004F);
   static const Color cosmicBlue = Color(0xFF001F4F);
@@ -40,13 +43,19 @@ enum UniverseStage {
   galacticAge,       // Tune: emForce
   lifeAge,           // Tune: entropyRate
   stellarDeath,      // Tune: darkEnergyPressure
-  cosmicFate         // Outcome revealed
+  civilizationDawn,   // Tune: cooperationIndex (Civ Layer)
+  technologicalAge,   // Tune: energyConsumption (Civ Layer)
+  cosmicLegacy,       // Outcome revealed (Civ Layer)
+  cosmicFate         // Outcome revealed (Standard)
 }
 
 enum UniverseOutcome {
   none,
   eternalGarden,     // Good ending A
-  lastLight,         // Good ending B (bittersweet)
+  lastLight,         // Good ending B
   greatCollapse,     // Destruction
-  eternalRecurrence  // Infinite loop
+  eternalRecurrence, // Infinite loop
+  transcendence,     // Civilization leaves the universe
+  extinction,        // Civilization destroys itself
+  equilibrium        // Civilization survives but stagnates
 }

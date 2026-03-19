@@ -1,5 +1,4 @@
-// WHAT: Added DNA generation during finalization and a DNA loading method.
-// WHY: To enable persistent universe identification and reproduction via 6-char seeds.
+// FEATURE: Session Persistence // WHAT CHANGED: Added `initAsync`, `clearAllHistory`, and integrated `PersistenceService` into the simulation lifecycle. Refactored `nextStage` to support the civilization layer. // WHY: To enable data persistence across app launches and implement the transition to the civilization-specific stages.
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -10,6 +9,7 @@ import '../models/universe_state.dart';
 import '../models/anomaly.dart';
 import 'codex_service.dart';
 import 'anomaly_service.dart';
+import 'persistence_service.dart';
 
 class SimulationService extends ChangeNotifier {
   final CodexService _codexService;
@@ -21,45 +21,64 @@ class SimulationService extends ChangeNotifier {
     nuclearForce: 0.5,
     entropyRate: 0.5,
     darkEnergyPressure: 0.5,
+    cooperationIndex: 0.5,
+    energyConsumption: 0.5,
     outcome: UniverseOutcome.none,
     stage: UniverseStage.cosmicDawn,
   );
 
   final List<UniverseState> _history = [];
+  bool _persistenceLoaded = false;
   Timer? _driftTimer;
 
   SimulationService(this._codexService, this._anomalyService);
 
   UniverseState get currentUniverse => _currentUniverse;
   List<UniverseState> get history => List.unmodifiable(_history);
+  bool get civilizationUnlocked => _history.any((u) => u.outcome == UniverseOutcome.eternalGarden);
+
+  Future<void> initAsync() async {
+    if (_persistenceLoaded) return;
+    _persistenceLoaded = true;
+    final saved = await PersistenceService.loadHistory();
+    _history.addAll(saved);
+    notifyListeners();
+  }
+
+  void clearAllHistory() {
+    _history.clear();
+    PersistenceService.clearHistory();
+    notifyListeners();
+  }
 
   bool get _isMirror => _anomalyService.activeAnomaly?.id == "mirror_universe";
   bool get _isIronStar => _anomalyService.activeAnomaly?.id == "iron_star";
   bool get _isSilentBang => _anomalyService.activeAnomaly?.id == "silent_bang";
 
-  // Gravity
+  // Effective Safe Zones
   double get effectiveGravityMin => _isMirror 
     ? GameConstants.gravityMax + 0.15 
     : (_isIronStar ? GameConstants.gravityMin + 0.05 : GameConstants.gravityMin);
   double get effectiveGravityMax => _isMirror ? 1.0 : GameConstants.gravityMax;
 
-  // Nuclear
   double get effectiveNuclearMin => _isMirror 
     ? GameConstants.nuclearForceMax + 0.15
     : (_isSilentBang ? 0.30 : GameConstants.nuclearForceMin);
   double get effectiveNuclearMax => _isMirror ? 1.0 : (_isSilentBang ? 0.70 : GameConstants.nuclearForceMax);
 
-  // EM
   double get effectiveEmMin => _isMirror ? GameConstants.emForceMax + 0.15 : GameConstants.emForceMin;
   double get effectiveEmMax => _isMirror ? 1.0 : GameConstants.emForceMax;
 
-  // Entropy
   double get effectiveEntropyMin => _isMirror ? GameConstants.entropyRateMax + 0.15 : GameConstants.entropyRateMin;
   double get effectiveEntropyMax => _isMirror ? 1.0 : GameConstants.entropyRateMax;
 
-  // Dark Energy
   double get effectiveDarkEnergyMin => _isMirror ? GameConstants.darkEnergyMax + 0.15 : GameConstants.darkEnergyMin;
   double get effectiveDarkEnergyMax => _isMirror ? 1.0 : GameConstants.darkEnergyMax;
+
+  double get effectiveCooperationMin => GameConstants.cooperationMin;
+  double get effectiveCooperationMax => GameConstants.cooperationMax;
+  double get effectiveEnergyMin => GameConstants.energyConsumptionMin;
+  double get effectiveEnergyMax => GameConstants.energyConsumptionMax;
 
   // PILLAR: Whisper System
   String get currentWhisper {
@@ -82,7 +101,6 @@ class SimulationService extends ChangeNotifier {
                    u.darkEnergyPressure >= GameConstants.darkEnergyMin && u.darkEnergyPressure <= GameConstants.darkEnergyMax;
     
     if (allSafe) return "... I feel it. The quiet hum of something that wants to live.";
-    
     return "";
   }
 
@@ -90,33 +108,16 @@ class SimulationService extends ChangeNotifier {
     return _anomalyService.activeAnomaly?.lockedConstants.containsKey(id) ?? false;
   }
 
-  void updateGravity(double value) {
-    if (isLocked("gravity")) return;
-    _currentUniverse = _currentUniverse.copyWith(gravity: value);
-    notifyListeners();
-  }
+  void updateGravity(double value) => _updateState(_currentUniverse.copyWith(gravity: value));
+  void updateEMForce(double value) => _updateState(_currentUniverse.copyWith(emForce: value));
+  void updateNuclearForce(double value) => _updateState(_currentUniverse.copyWith(nuclearForce: value));
+  void updateEntropyRate(double value) => _updateState(_currentUniverse.copyWith(entropyRate: value));
+  void updateDarkEnergy(double value) => _updateState(_currentUniverse.copyWith(darkEnergyPressure: value));
+  void updateCooperation(double value) => _updateState(_currentUniverse.copyWith(cooperationIndex: value));
+  void updateEnergyConsumption(double value) => _updateState(_currentUniverse.copyWith(energyConsumption: value));
 
-  void updateNuclearForce(double value) {
-    if (isLocked("nuclear")) return;
-    _currentUniverse = _currentUniverse.copyWith(nuclearForce: value);
-    notifyListeners();
-  }
-
-  void updateEMForce(double value) {
-    if (isLocked("em")) return;
-    _currentUniverse = _currentUniverse.copyWith(emForce: value);
-    notifyListeners();
-  }
-
-  void updateEntropyRate(double value) {
-    if (isLocked("entropy")) return;
-    _currentUniverse = _currentUniverse.copyWith(entropyRate: value);
-    notifyListeners();
-  }
-
-  void updateDarkEnergy(double value) {
-    if (isLocked("darkEnergy")) return;
-    _currentUniverse = _currentUniverse.copyWith(darkEnergyPressure: value);
+  void _updateState(UniverseState newState) {
+    _currentUniverse = newState;
     notifyListeners();
   }
 
@@ -138,27 +139,34 @@ class SimulationService extends ChangeNotifier {
     _codexService.checkAndUnlock(_currentUniverse, _currentUniverse.stage);
 
     if (_currentUniverse.stage == UniverseStage.stellarDeath) {
-      finishSimulation();
-    } else if (_currentUniverse.stage != UniverseStage.cosmicFate) {
-      final nextIndex = _currentUniverse.stage.index + 1;
-      _currentUniverse = _currentUniverse.copyWith(
-        stage: UniverseStage.values[nextIndex],
+      final initialOutcome = SimulationEngine.calculateOutcome(
+        _currentUniverse.gravity,
+        _currentUniverse.nuclearForce,
+        _currentUniverse.emForce,
+        _currentUniverse.entropyRate,
+        _currentUniverse.darkEnergyPressure,
       );
+
+      if (initialOutcome == UniverseOutcome.eternalGarden && civilizationUnlocked) {
+        _currentUniverse = _currentUniverse.copyWith(stage: UniverseStage.civilizationDawn);
+      } else {
+        _finishSimulation(initialOutcome, UniverseStage.cosmicFate);
+      }
+    } else if (_currentUniverse.stage == UniverseStage.cosmicLegacy) {
+      final civOutcome = SimulationEngine.calculateCivilizationOutcome(
+        _currentUniverse.cooperationIndex,
+        _currentUniverse.energyConsumption,
+      );
+      _finishSimulation(civOutcome, UniverseStage.cosmicLegacy); // Stays in legacy for viewing
+    } else {
+      final nextIndex = _currentUniverse.stage.index + 1;
+      _currentUniverse = _currentUniverse.copyWith(stage: UniverseStage.values[nextIndex]);
     }
     notifyListeners();
   }
 
-  void finishSimulation() {
+  void _finishSimulation(UniverseOutcome outcome, UniverseStage finalStage) {
     _driftTimer?.cancel();
-    
-    final outcome = SimulationEngine.calculateOutcome(
-      _currentUniverse.gravity,
-      _currentUniverse.nuclearForce,
-      _currentUniverse.emForce,
-      _currentUniverse.entropyRate,
-      _currentUniverse.darkEnergyPressure,
-    );
-
     final dna = UniverseDNA.generate(
       _currentUniverse.gravity,
       _currentUniverse.nuclearForce,
@@ -169,14 +177,14 @@ class SimulationService extends ChangeNotifier {
 
     _currentUniverse = _currentUniverse.copyWith(
       outcome: outcome,
-      stage: UniverseStage.cosmicFate,
+      stage: finalStage,
       dna: dna,
     );
 
     _history.add(_currentUniverse);
+    PersistenceService.saveHistory(_history);
     _codexService.checkAndUnlock(_currentUniverse, _currentUniverse.stage);
     _anomalyService.checkCompletion(outcome);
-    notifyListeners();
   }
 
   void loadFromDNA(Map<String, double> constants) {
@@ -196,19 +204,18 @@ class SimulationService extends ChangeNotifier {
   void reset() {
     _driftTimer?.cancel();
     final anomaly = _anomalyService.activeAnomaly;
-    
     _currentUniverse = UniverseState(
       gravity: anomaly?.lockedConstants["gravity"] ?? 0.5,
       emForce: anomaly?.lockedConstants["em"] ?? 0.5,
       nuclearForce: anomaly?.lockedConstants["nuclear"] ?? 0.5,
       entropyRate: anomaly?.lockedConstants["entropy"] ?? 0.5,
       darkEnergyPressure: anomaly?.lockedConstants["darkEnergy"] ?? 0.5,
+      cooperationIndex: anomaly?.lockedConstants["cooperation"] ?? 0.5,
+      energyConsumption: 0.5,
       outcome: UniverseOutcome.none,
       stage: UniverseStage.cosmicDawn,
     );
-
     if (anomaly?.id == "dark_tide") _startDriftTimer();
-    
     notifyListeners();
   }
 

@@ -1,8 +1,4 @@
-// CHANGES MADE:
-// 1. Fixed the `Icons.Grain` error (Icons are lowercase by convention in Flutter, e.g., `Icons.grain`).
-// 2. Implemented `CodexService` to manage the lifecycle of cosmic lore.
-// 3. Added persistence for unlocked entries using `shared_preferences`.
-// 4. Implemented `checkAndUnlock` logic to match game state against 12 specific lore triggers.
+// FEATURE: Civilization Layer // WHAT CHANGED: Added 3 new codex entries related to civilization and transcendence. Implemented resetAll() method to clear data. // WHY: To expand the lore into the new civilization phase and provide a way to clear progress.
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -108,6 +104,30 @@ class CodexService extends ChangeNotifier {
       icon: Icons.park,
       accentColor: Colors.teal,
     ),
+    CodexEntry(
+      id: "cooperation_theory",
+      title: "The Fermi Resolution",
+      body: "The Great Silence may not indicate absence of life — but the rarity of cooperation at civilizational scale. Intelligence is common. Coordination is the filter.",
+      unlockCondition: "Reach the Civilization Dawn stage.",
+      icon: Icons.people_outline,
+      accentColor: Colors.teal,
+    ),
+    CodexEntry(
+      id: "dyson_sphere",
+      title: "The Kardashev Scale",
+      body: "A Type II civilization harnesses the full output of its star. A Type III, its galaxy. We have detected neither. The silence suggests the transition is hard.",
+      unlockCondition: "Reach the Technological Age.",
+      icon: Icons.electric_bolt,
+      accentColor: Colors.amber,
+    ),
+    CodexEntry(
+      id: "transcendence_entry",
+      title: "The Simulation Argument",
+      body: "If a civilization can create universes indistinguishable from base reality, then statistically we are almost certainly inside one. The creator may have been exactly like you.",
+      unlockCondition: "Achieve Transcendence.",
+      icon: Icons.blur_circular,
+      accentColor: Colors.white,
+    ),
   ];
 
   List<CodexEntry> get entries => List.unmodifiable(_entries);
@@ -164,11 +184,14 @@ class CodexService extends ChangeNotifier {
     if (reachedStage.index >= UniverseStage.galacticAge.index) unlock("galaxy_formation");
     if (reachedStage.index >= UniverseStage.lifeAge.index) unlock("life_emergence");
     if (reachedStage.index >= UniverseStage.stellarDeath.index) unlock("stellar_death");
+    if (reachedStage == UniverseStage.civilizationDawn) unlock("cooperation_theory");
+    if (reachedStage == UniverseStage.technologicalAge) unlock("dyson_sphere");
 
     // Outcome-based unlocks
     if (state.outcome == UniverseOutcome.greatCollapse) unlock("gravity_collapse");
     if (state.outcome == UniverseOutcome.eternalRecurrence) unlock("knife_edge");
     if (state.outcome == UniverseOutcome.lastLight) unlock("last_light_entry");
+    if (state.outcome == UniverseOutcome.transcendence) unlock("transcendence_entry");
     if (state.outcome == UniverseOutcome.eternalGarden) {
       unlock("entropy_life");
       bool allSafe = state.gravity >= GameConstants.gravityMin && state.gravity <= GameConstants.gravityMax &&
@@ -183,5 +206,16 @@ class CodexService extends ChangeNotifier {
       _hasNewEntries = true;
       notifyListeners();
     }
+  }
+
+  Future<void> resetAll() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (int i = 0; i < _entries.length; i++) {
+      _entries[i] = _entries[i].copyWith(isUnlocked: false, isSeen: false);
+      await prefs.remove('codex_${_entries[i].id}');
+      await prefs.remove('codex_seen_${_entries[i].id}');
+    }
+    _hasNewEntries = false;
+    notifyListeners();
   }
 }

@@ -1,19 +1,14 @@
-// CHANGES MADE:
-// 1. Replaced old outcome calculation with the new 4-tier thematic ending system.
-// 2. Implemented priority-based evaluation: Collapse -> Recurrence -> Last Light -> Garden.
-// 3. Added narrative strings for each ending to be displayed on the ResultScreen.
-// 4. Integrated the new `entropyRate` and `darkEnergyPressure` constants into the logic.
-// 5. Added a "knife-edge" balance check for the Eternal Recurrence ending.
+// FEATURE: Civilization Layer // WHAT CHANGED: Implemented priority-based outcome calculation for the initial phase and a new calculation method for the civilization phase. Added narrative messages for all 7 possible endings. // WHY: To support the expanded narrative arc from cosmic birth to civilizational transcendence.
 
 import 'constants.dart';
 
 class SimulationEngine {
   static UniverseOutcome calculateOutcome(
-    double gravity, 
-    double nuclear, 
-    double em, 
-    double entropy, 
-    double darkEnergy
+    double gravity,
+    double nuclear,
+    double em,
+    double entropy,
+    double darkEnergy,
   ) {
     // 1. Check GREAT COLLAPSE (Priority 1)
     if (gravity > 0.65 || darkEnergy < 0.30) {
@@ -22,10 +17,10 @@ class SimulationEngine {
 
     // 2. Check ETERNAL RECURRENCE (Priority 2)
     bool isKnifeEdge = (gravity - 0.5).abs() <= 0.02 &&
-                       (nuclear - 0.5).abs() <= 0.02 &&
-                       (em - 0.5).abs() <= 0.02 &&
-                       (entropy - 0.5).abs() <= 0.02 &&
-                       (darkEnergy - 0.5).abs() <= 0.02;
+        (nuclear - 0.5).abs() <= 0.02 &&
+        (em - 0.5).abs() <= 0.02 &&
+        (entropy - 0.5).abs() <= 0.02 &&
+        (darkEnergy - 0.5).abs() <= 0.02;
 
     if ((darkEnergy > 0.70 && entropy < 0.35) || isKnifeEdge) {
       return UniverseOutcome.eternalRecurrence;
@@ -42,13 +37,35 @@ class SimulationEngine {
     }
 
     // 4. Default / ETERNAL GARDEN
-    bool entropyOk = entropy >= GameConstants.entropyRateMin && entropy <= GameConstants.entropyRateMax;
-    if (gravityOk && nuclearOk && emOk && entropyOk && darkEnergyOk) {
-      return UniverseOutcome.eternalGarden;
+    return UniverseOutcome.eternalGarden;
+  }
+
+  static UniverseOutcome calculateCivilizationOutcome(
+    double cooperation,
+    double energy,
+  ) {
+    // 1. Check EXTINCTION (Immediate failure)
+    if (cooperation < 0.35 || energy > 0.70) {
+      return UniverseOutcome.extinction;
     }
 
-    // Fallback if none of the above match exactly
-    return (darkEnergy > 0.6) ? UniverseOutcome.eternalRecurrence : UniverseOutcome.greatCollapse;
+    // 2. Check TRANSCENDENCE (Optimal)
+    if (cooperation > 0.65 && energy >= 0.35 && energy <= 0.55) {
+      return UniverseOutcome.transcendence;
+    }
+
+    // 3. Mixed results (Probabilistic but deterministic)
+    if (cooperation >= 0.40 && cooperation <= 0.65 && energy >= 0.35 && energy <= 0.55) {
+      // Deterministic "50% chance" using input values
+      if ((cooperation + (1.0 - energy)) > 1.0) {
+        return UniverseOutcome.transcendence;
+      } else {
+        return UniverseOutcome.equilibrium;
+      }
+    }
+
+    // Fallback
+    return UniverseOutcome.extinction;
   }
 
   static String getOutcomeMessage(UniverseOutcome outcome) {
@@ -61,6 +78,12 @@ class SimulationEngine {
         return "Gravity wins. Everything — every star, every world, every thought — crushed back into a single, silent point.";
       case UniverseOutcome.eternalRecurrence:
         return "The universe neither lives nor dies. It expands, contracts, and is born again. You are trapped in the loop.";
+      case UniverseOutcome.transcendence:
+        return "The civilization solved cooperation. They left the universe entirely, ascending to dimensions beyond observation. The stars remember them.";
+      case UniverseOutcome.extinction:
+        return "They had the stars within reach. Internal conflict consumed them before they could grasp it. The universe continues, indifferent.";
+      case UniverseOutcome.equilibrium:
+        return "They survived. Not transcendent, not extinct — simply enduring. Billions of years of quiet, stable civilization. Perhaps that is enough.";
       default:
         return "The void remains silent.";
     }
@@ -76,6 +99,12 @@ class SimulationEngine {
         return "The weight of existence becomes too heavy.\nThe crushing end.";
       case UniverseOutcome.eternalRecurrence:
         return "Time is a circle, and you are its architect.\nThe snake eats its tail.";
+      case UniverseOutcome.transcendence:
+        return "Beyond the observable.\nThe next step.";
+      case UniverseOutcome.extinction:
+        return "So close, and yet.\nThe silence after.";
+      case UniverseOutcome.equilibrium:
+        return "Not fire, not ice.\nJust time.";
       default:
         return "";
     }
