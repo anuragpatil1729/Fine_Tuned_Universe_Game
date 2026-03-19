@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "665118661577",
+    "project_id": "authantisolo",
+    "storage_bucket": "authantisolo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:665118661577:android:99856520ee4deb6d1c2618",
+        "android_client_info": {
+          "package_name": "com.example.finetuneduniverse"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "665118661577-d5ovjbciket08gj40as0am2ahum1tgko.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDqXqieRqPQTR4YF9sl-E8fcOnD7cI_X_E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "665118661577-d5ovjbciket08gj40as0am2ahum1tgko.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "665118661577-6qtj4ec5lhs723r6da443ggeu05pbgbj.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.finetuneduniverse"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
