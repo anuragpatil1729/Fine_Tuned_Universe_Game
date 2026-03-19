@@ -1,9 +1,3 @@
-// BUG FIXED: Bug 5 - cosmicFate navigation fires multiple times.
-// BUG FIXED: Bug 6 - Mirror Universe safe zones never passed to slider.
-// HOW: Converted to StatefulWidget to track `_navigationScheduled` flag. 
-// Moved navigation logic to a helper called during stage check.
-// Updated `_buildActiveSlider` to use all service getters for safe zones.
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,6 +10,7 @@ import '../widgets/universe_visual.dart';
 import '../widgets/multiverse_observatory.dart';
 import '../widgets/whisper_bar.dart';
 import 'codex_screen.dart';
+import 'observatory_screen.dart';
 import 'result_screen.dart';
 
 class SimulationScreen extends StatefulWidget {
@@ -47,7 +42,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
       builder: (context, sim, codex, anomaly, child) {
         final state = sim.currentUniverse;
         final activeAnomaly = anomaly.activeAnomaly;
-        
+
         if (state.stage == UniverseStage.cosmicFate) {
           _maybeNavigateToResult(state.stage);
         }
@@ -59,12 +54,22 @@ class _SimulationScreenState extends State<SimulationScreen> {
             elevation: 0,
             automaticallyImplyLeading: false,
             actions: [
+              // Observatory button
+              IconButton(
+                icon: const Icon(Icons.scatter_plot, color: Colors.white38),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const ObservatoryScreen()),
+                ),
+              ),
+              // Codex button with notification badge
               Stack(
                 children: [
                   IconButton(
                     icon: const Icon(Icons.menu_book, color: Colors.white70),
                     onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CodexScreen()),
+                      MaterialPageRoute(
+                          builder: (_) => const CodexScreen()),
                     ),
                   ),
                   if (codex.hasNewEntries)
@@ -93,7 +98,6 @@ class _SimulationScreenState extends State<SimulationScreen> {
                   children: [
                     if (activeAnomaly?.id == "dark_tide")
                       _buildPressureBar(state.darkEnergyPressure),
-                    
                     Expanded(
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 600),
@@ -101,7 +105,8 @@ class _SimulationScreenState extends State<SimulationScreen> {
                           return FadeTransition(
                             opacity: animation,
                             child: ScaleTransition(
-                              scale: Tween<double>(begin: 0.95, end: 1.0).animate(animation),
+                              scale: Tween<double>(begin: 0.95, end: 1.0)
+                                  .animate(animation),
                               child: child,
                             ),
                           );
@@ -110,14 +115,17 @@ class _SimulationScreenState extends State<SimulationScreen> {
                           key: ValueKey(state.stage),
                           children: [
                             const SizedBox(height: 10),
-                            _StaggeredTitle(text: _getStageTitle(state.stage)),
+                            _StaggeredTitle(
+                                text: _getStageTitle(state.stage)),
                             const SizedBox(height: 10),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 40),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 40),
                               child: Text(
                                 _getStageDescription(state.stage),
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white38, fontSize: 12),
+                                style: const TextStyle(
+                                    color: Colors.white38, fontSize: 12),
                               ),
                             ),
                             Expanded(
@@ -136,19 +144,20 @@ class _SimulationScreenState extends State<SimulationScreen> {
                         ),
                       ),
                     ),
-
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: const BoxDecoration(
                         color: Colors.black54,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                        borderRadius:
+                        BorderRadius.vertical(top: Radius.circular(30)),
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           WhisperBar(whisper: sim.currentWhisper),
                           const SizedBox(height: 10),
-                          if (state.stage != UniverseStage.cosmicFate) ...[
+                          if (state.stage !=
+                              UniverseStage.cosmicFate) ...[
                             _buildActiveSlider(sim),
                             const SizedBox(height: 20),
                             ElevatedButton(
@@ -156,12 +165,20 @@ class _SimulationScreenState extends State<SimulationScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
                                 foregroundColor: Colors.black,
-                                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 50, vertical: 15),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                    BorderRadius.circular(30)),
                               ),
                               child: Text(
-                                state.stage == UniverseStage.stellarDeath ? "WITNESS DESTINY" : "NEXT ERA",
-                                style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2),
+                                state.stage ==
+                                    UniverseStage.stellarDeath
+                                    ? "WITNESS DESTINY"
+                                    : "NEXT ERA",
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 2),
                               ),
                             ),
                           ],
@@ -187,15 +204,23 @@ class _SimulationScreenState extends State<SimulationScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("DARK TIDE PRESSURE", style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1)),
-              Text("${(pressure * 100).toInt()}%", style: TextStyle(color: danger ? Colors.red : Colors.white38, fontSize: 10)),
+              const Text("DARK TIDE PRESSURE",
+                  style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 10,
+                      letterSpacing: 1)),
+              Text("${(pressure * 100).toInt()}%",
+                  style: TextStyle(
+                      color: danger ? Colors.red : Colors.white38,
+                      fontSize: 10)),
             ],
           ),
           const SizedBox(height: 5),
           LinearProgressIndicator(
             value: pressure / 0.8,
             backgroundColor: Colors.white10,
-            valueColor: AlwaysStoppedAnimation<Color>(danger ? Colors.red : Colors.cyanAccent),
+            valueColor: AlwaysStoppedAnimation<Color>(
+                danger ? Colors.red : Colors.cyanAccent),
           ),
         ],
       ),
@@ -268,12 +293,18 @@ class _SimulationScreenState extends State<SimulationScreen> {
 
   String _getStageDescription(UniverseStage stage) {
     switch (stage) {
-      case UniverseStage.cosmicDawn: return "The singularity expands. Establish the foundation of order.";
-      case UniverseStage.stellarAge: return "Hydrogen ignites. The first light negotiates with the dark.";
-      case UniverseStage.galacticAge: return "Matter clusters into spiral islands. Atoms seek resonance.";
-      case UniverseStage.lifeAge: return "The mirror of consciousness awakens. Complexity fights entropy.";
-      case UniverseStage.stellarDeath: return "Fuel runs dry. The final expansion begins its acceleration.";
-      case UniverseStage.cosmicFate: return "The arc reaches its conclusion. Observe your handiwork.";
+      case UniverseStage.cosmicDawn:
+        return "The singularity expands. Establish the foundation of order.";
+      case UniverseStage.stellarAge:
+        return "Hydrogen ignites. The first light negotiates with the dark.";
+      case UniverseStage.galacticAge:
+        return "Matter clusters into spiral islands. Atoms seek resonance.";
+      case UniverseStage.lifeAge:
+        return "The mirror of consciousness awakens. Complexity fights entropy.";
+      case UniverseStage.stellarDeath:
+        return "Fuel runs dry. The final expansion begins its acceleration.";
+      case UniverseStage.cosmicFate:
+        return "The arc reaches its conclusion. Observe your handiwork.";
     }
   }
 }
@@ -286,7 +317,8 @@ class _StaggeredTitle extends StatefulWidget {
   State<_StaggeredTitle> createState() => _StaggeredTitleState();
 }
 
-class _StaggeredTitleState extends State<_StaggeredTitle> with TickerProviderStateMixin {
+class _StaggeredTitleState extends State<_StaggeredTitle>
+    with TickerProviderStateMixin {
   late List<AnimationController> _controllers;
   late List<Animation<double>> _animations;
 
@@ -299,9 +331,13 @@ class _StaggeredTitleState extends State<_StaggeredTitle> with TickerProviderSta
   void _initAnimations() {
     _controllers = List.generate(
       widget.text.length,
-      (index) => AnimationController(vsync: this, duration: const Duration(milliseconds: 300)),
+          (index) => AnimationController(
+          vsync: this, duration: const Duration(milliseconds: 300)),
     );
-    _animations = _controllers.map((c) => Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: c, curve: Curves.easeIn))).toList();
+    _animations = _controllers
+        .map((c) => Tween<double>(begin: 0, end: 1).animate(
+        CurvedAnimation(parent: c, curve: Curves.easeIn)))
+        .toList();
     _play();
   }
 
@@ -340,7 +376,12 @@ class _StaggeredTitleState extends State<_StaggeredTitle> with TickerProviderSta
           opacity: _animations[index],
           child: Text(
             widget.text[index],
-            style: GoogleFonts.orbitron(color: Colors.white, fontSize: 24, letterSpacing: 4, fontWeight: FontWeight.bold),
+            style: GoogleFonts.orbitron(
+              color: Colors.white,
+              fontSize: 24,
+              letterSpacing: 4,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         );
       }),
