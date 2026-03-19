@@ -1,8 +1,5 @@
-// CHANGES MADE:
-// 1. Added `entropyRate` and `darkEnergyPressure` fields to represent the full lifecycle constants.
-// 2. Updated `copyWith` to handle the new fields.
-// 3. Set default values for new fields to 0.5.
-// 4. Maintained compatibility with existing simulation logic while extending for the new narrative.
+// WHAT: Added `dna` field to the state model.
+// WHY: To support deterministic positioning in the Observatory and universe sharing.
 
 import '../core/constants.dart';
 
@@ -12,6 +9,7 @@ class UniverseState {
   final double nuclearForce;
   final double entropyRate;
   final double darkEnergyPressure;
+  final String dna;
   final UniverseOutcome outcome;
   final UniverseStage stage;
   final DateTime timestamp;
@@ -22,6 +20,7 @@ class UniverseState {
     required this.nuclearForce,
     this.entropyRate = 0.5,
     this.darkEnergyPressure = 0.5,
+    this.dna = '',
     required this.outcome,
     required this.stage,
     DateTime? timestamp,
@@ -33,6 +32,7 @@ class UniverseState {
     double? nuclearForce,
     double? entropyRate,
     double? darkEnergyPressure,
+    String? dna,
     UniverseOutcome? outcome,
     UniverseStage? stage,
   }) {
@@ -42,6 +42,7 @@ class UniverseState {
       nuclearForce: nuclearForce ?? this.nuclearForce,
       entropyRate: entropyRate ?? this.entropyRate,
       darkEnergyPressure: darkEnergyPressure ?? this.darkEnergyPressure,
+      dna: dna ?? this.dna,
       outcome: outcome ?? this.outcome,
       stage: stage ?? this.stage,
       timestamp: this.timestamp,
