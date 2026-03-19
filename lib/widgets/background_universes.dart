@@ -1,14 +1,10 @@
-// CHANGES MADE:
-// 1. Updated the "Pattern Detected" analysis to include all 5 physical constants (Entropy and Dark Energy).
-// 2. Updated the outcome visualization logic to handle the new 4-tier ending system.
-// 3. Refined the tooltip to display all 5 tuned parameters for each multiverse iteration.
-// 4. Adjusted the visual indicators (icons and colors) to reflect the new thematic outcomes.
-// 5. Maintained the tappable grid system for exploring previous universe attempts.
-// 6. Removed unused imports.
+// BUG FIXED: Bug 4 - Outcome name string has leading space.
+// HOW: Integrated `StringUtils.outcomeLabel` for clean outcome titles in tooltips.
 
 import 'package:flutter/material.dart';
 import '../models/universe_state.dart';
 import '../core/constants.dart';
+import '../core/string_utils.dart';
 
 class BackgroundUniverses extends StatelessWidget {
   final List<UniverseState> history;
@@ -64,7 +60,7 @@ class BackgroundUniverses extends StatelessWidget {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
         title: Text(
-          state.outcome.name.replaceAll(RegExp(r'(?=[A-Z])'), ' ').toUpperCase(),
+          StringUtils.outcomeLabel(state.outcome.name),
           style: const TextStyle(color: Colors.white, fontSize: 16, letterSpacing: 1.5),
         ),
         content: Column(

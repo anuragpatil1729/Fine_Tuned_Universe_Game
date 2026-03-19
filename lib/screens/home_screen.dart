@@ -1,10 +1,6 @@
-// CHANGES MADE:
-// 1. Implemented a persistent starfield background using 150 stars with randomized positions and twinkling animations.
-// 2. Updated the narrative subtitle to reflect the new "Birth to Death" concept: "From the first spark to the final silence."
-// 3. Added returning player readout: "Badges: X / 5" and "Codex: X / 12".
-// 4. Refined the visual styling with a darker, more centered layout to focus on the cosmic atmosphere.
-// 5. Used a single looping `AnimationController` to drive all star twinkling for performance efficiency.
-// 6. Integrated with `AnomalyService` and `CodexService` for progress tracking.
+// BUG FIXED: Bug 1 - StarfieldPainter regenerates stars every frame.
+// HOW: Moved star positions and sizes generation to initState() so they are computed once. 
+// Passed them as final lists to the painter to ensure visual stability while animating opacity.
 
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -25,6 +21,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   late AnimationController _starController;
+  final List<Offset> _starPositions = [];
+  final List<double> _starSizes = [];
 
   @override
   void initState() {
@@ -33,6 +31,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
+
+    final random = Random(42); // Fixed seed for consistent star placement
+    for (int i = 0; i < 150; i++) {
+      _starPositions.add(Offset(random.nextDouble(), random.nextDouble()));
+      _starSizes.add(random.nextDouble() * 2);
+    }
   }
 
   @override
@@ -55,7 +59,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               // Twinkling Starfield
               Positioned.fill(
                 child: CustomPaint(
-                  painter: StarfieldPainter(_starController),
+                  painter: StarfieldPainter(
+                    animation: _starController,
+                    starPositions: _starPositions,
+                    starSizes: _starSizes,
+                  ),
                 ),
               ),
               
@@ -166,10 +174,11 @@ class StarfieldPainter extends CustomPainter {
   final List<Offset> starPositions;
   final List<double> starSizes;
 
-  StarfieldPainter(this.animation)
-      : starPositions = List.generate(150, (_) => Offset(Random().nextDouble(), Random().nextDouble())),
-        starSizes = List.generate(150, (_) => Random().nextDouble() * 2),
-        super(repaint: animation);
+  StarfieldPainter({
+    required this.animation,
+    required this.starPositions,
+    required this.starSizes,
+  }) : super(repaint: animation);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -186,5 +195,5 @@ class StarfieldPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant StarfieldPainter oldDelegate) => false;
 }

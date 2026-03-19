@@ -1,12 +1,6 @@
-// CHANGES MADE:
-// 1. Injected `CodexService` and `AnomalyService` for integrated progression and challenge logic.
-// 2. Implemented the "Whisper System" logic in `currentWhisper` to provide atmospheric feedback.
-// 3. Added Anomaly handling:
-//    - "Dark Tide": Timer-based dark energy drift.
-//    - Locked constants: Prevention of editing when an anomaly dictates a fixed value.
-//    - Completion checking: Calling `anomalyService.checkCompletion` upon finishing.
-// 4. Integrated Codex unlocking: Calling `codexService.checkAndUnlock` at every stage advance.
-// 5. Added safe zone getters that adapt to active anomalies (Mirror Universe, Silent Bang, etc.).
+// BUG FIXED: Bug 6 - Mirror Universe safe zones never passed to slider.
+// HOW: Implemented computed safe zone getters for ALL 5 constants. 
+// Added inversion logic for the Mirror Universe anomaly where danger zones become safe zones.
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
@@ -39,19 +33,33 @@ class SimulationService extends ChangeNotifier {
   UniverseState get currentUniverse => _currentUniverse;
   List<UniverseState> get history => List.unmodifiable(_history);
 
-  // PILLAR: Anomaly Safe Zones
-  double get gravityMin => _isMirror ? 0.0 : (_isSilentBang ? GameConstants.gravityMin : GameConstants.gravityMin);
-  // Prompt says: "Silent Bang: nuclearForce safe zone widens to 0.30–0.70"
-  // Prompt says: "Iron Star: Safe zone for gravity narrows by 0.05 on each side"
-  double get effectiveGravityMin => _isIronStar ? GameConstants.gravityMin + 0.05 : GameConstants.gravityMin;
-  double get effectiveGravityMax => _isIronStar ? GameConstants.gravityMax - 0.05 : GameConstants.gravityMax;
-  
-  double get effectiveNuclearMin => _isSilentBang ? 0.30 : GameConstants.nuclearForceMin;
-  double get effectiveNuclearMax => _isSilentBang ? 0.70 : GameConstants.nuclearForceMax;
-
   bool get _isMirror => _anomalyService.activeAnomaly?.id == "mirror_universe";
   bool get _isIronStar => _anomalyService.activeAnomaly?.id == "iron_star";
   bool get _isSilentBang => _anomalyService.activeAnomaly?.id == "silent_bang";
+
+  // Gravity
+  double get effectiveGravityMin => _isMirror 
+    ? GameConstants.gravityMax + 0.15 
+    : (_isIronStar ? GameConstants.gravityMin + 0.05 : GameConstants.gravityMin);
+  double get effectiveGravityMax => _isMirror ? 1.0 : GameConstants.gravityMax;
+
+  // Nuclear
+  double get effectiveNuclearMin => _isMirror 
+    ? GameConstants.nuclearForceMax + 0.15
+    : (_isSilentBang ? 0.30 : GameConstants.nuclearForceMin);
+  double get effectiveNuclearMax => _isMirror ? 1.0 : (_isSilentBang ? 0.70 : GameConstants.nuclearForceMax);
+
+  // EM
+  double get effectiveEmMin => _isMirror ? GameConstants.emForceMax + 0.15 : GameConstants.emForceMin;
+  double get effectiveEmMax => _isMirror ? 1.0 : GameConstants.emForceMax;
+
+  // Entropy
+  double get effectiveEntropyMin => _isMirror ? GameConstants.entropyRateMax + 0.15 : GameConstants.entropyRateMin;
+  double get effectiveEntropyMax => _isMirror ? 1.0 : GameConstants.entropyRateMax;
+
+  // Dark Energy
+  double get effectiveDarkEnergyMin => _isMirror ? GameConstants.darkEnergyMax + 0.15 : GameConstants.darkEnergyMin;
+  double get effectiveDarkEnergyMax => _isMirror ? 1.0 : GameConstants.darkEnergyMax;
 
   // PILLAR: Whisper System
   String get currentWhisper {
@@ -120,9 +128,6 @@ class SimulationService extends ChangeNotifier {
           _currentUniverse = _currentUniverse.copyWith(
             darkEnergyPressure: (_currentUniverse.darkEnergyPressure + 0.002).clamp(0.0, 1.0),
           );
-          if (_currentUniverse.darkEnergyPressure > 0.80) {
-             // Dark energy exceeds threshold in Dark Tide
-          }
           notifyListeners();
         }
       });

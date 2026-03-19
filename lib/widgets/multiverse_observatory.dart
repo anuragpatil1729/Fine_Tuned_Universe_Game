@@ -1,9 +1,7 @@
-// CHANGES MADE:
-// 1. Replaced `BackgroundUniverses` with the `MultiverseObservatory`.
-// 2. Implemented a parallax starfield using `sensors_plus` for device tilt interaction.
-// 3. Added constellation connection lines between universe history points.
-// 4. Implemented a "recent" pulse animation and an "archaeology" layer for old runs.
-// 5. Added a sophisticated bottom sheet detail view featuring a CustomPainter radar chart for constant analysis.
+// BUG FIXED: Bug 2 - Bubble positions don't match constellation lines.
+// BUG FIXED: Bug 4 - Outcome name string has leading space.
+// HOW: Implemented a static `getBubbleOffset` method to centralize coordinate calculation based on screen size.
+// Integrated `StringUtils.outcomeLabel` for clean outcome titles.
 
 import 'dart:async';
 import 'dart:math';
@@ -11,11 +9,20 @@ import 'package:flutter/material.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import '../models/universe_state.dart';
 import '../core/constants.dart';
+import '../core/string_utils.dart';
 
 class MultiverseObservatory extends StatefulWidget {
   final List<UniverseState> history;
 
   const MultiverseObservatory({super.key, required this.history});
+
+  static Offset getBubbleOffset(int index, Size size) {
+    final r = Random(index * 7919); // large prime for distribution
+    return Offset(
+      r.nextDouble() * (size.width - 60) + 30,
+      r.nextDouble() * (size.height * 0.6) + 100,
+    );
+  }
 
   @override
   State<MultiverseObservatory> createState() => _MultiverseObservatoryState();
@@ -40,9 +47,7 @@ class _MultiverseObservatoryState extends State<MultiverseObservatory> with Sing
         _tiltX = (event.x * 2).clamp(-20, 20);
         _tiltY = (event.y * 2).clamp(-20, 20);
       });
-    }, onError: (_) {
-      // Fallback handled via slow drift if sensor unavailable
-    });
+    }, onError: (_) {});
   }
 
   @override
@@ -54,28 +59,28 @@ class _MultiverseObservatoryState extends State<MultiverseObservatory> with Sing
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
     return Stack(
       children: [
-        // Parallax Star Layers
         _buildStarLayer(0.2, 100),
         _buildStarLayer(0.5, 50),
 
-        // Constellation Lines & Bubbles
         CustomPaint(
           size: Size.infinite,
-          painter: ConstellationPainter(widget.history, _pulseController.value),
+          painter: ConstellationPainter(widget.history, _pulseController.value, size),
         ),
 
-        // Interactive Bubbles
         ...widget.history.asMap().entries.map((entry) {
           final index = entry.key;
           final state = entry.value;
           final isRecent = index == widget.history.length - 1;
           final isAncient = widget.history.length - index > 5;
+          final pos = MultiverseObservatory.getBubbleOffset(index, size);
 
           return Positioned(
-            left: _getBubblePos(index, true),
-            top: _getBubblePos(index, false),
+            left: pos.dx - 20,
+            top: pos.dy - 20,
             child: GestureDetector(
               onTap: () => _showUniverseDetails(context, state, index),
               child: Opacity(
@@ -122,11 +127,6 @@ class _MultiverseObservatoryState extends State<MultiverseObservatory> with Sing
     );
   }
 
-  double _getBubblePos(int index, bool isX) {
-    Random r = Random(index);
-    return isX ? r.nextDouble() * 300 + 20 : r.nextDouble() * 500 + 100;
-  }
-
   void _showUniverseDetails(BuildContext context, UniverseState state, int index) {
     showModalBottomSheet(
       context: context,
@@ -144,7 +144,7 @@ class _MultiverseObservatoryState extends State<MultiverseObservatory> with Sing
             Text("UNIVERSE #$index", style: const TextStyle(color: Colors.white38, letterSpacing: 2)),
             const SizedBox(height: 10),
             Text(
-              state.outcome.name.replaceAll(RegExp(r'(?=[A-Z])'), ' ').toUpperCase(),
+              StringUtils.outcomeLabel(state.outcome.name),
               style: TextStyle(color: _getOutcomeColor(state.outcome), fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
@@ -221,13 +221,14 @@ class StaticStarfieldPainter extends CustomPainter {
     }
   }
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant StaticStarfieldPainter oldDelegate) => false;
 }
 
 class ConstellationPainter extends CustomPainter {
   final List<UniverseState> history;
   final double pulse;
-  ConstellationPainter(this.history, this.pulse);
+  final Size size;
+  ConstellationPainter(this.history, this.pulse, this.size);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -238,15 +239,13 @@ class ConstellationPainter extends CustomPainter {
       ..strokeWidth = 1;
 
     for (int i = 0; i < history.length - 1; i++) {
-      final r1 = Random(i);
-      final r2 = Random(i + 1);
-      final start = Offset(r1.nextDouble() * 300 + 40, r1.nextDouble() * 500 + 120);
-      final end = Offset(r2.nextDouble() * 300 + 40, r2.nextDouble() * 500 + 120);
+      final start = MultiverseObservatory.getBubbleOffset(i, this.size);
+      final end = MultiverseObservatory.getBubbleOffset(i + 1, this.size);
       canvas.drawLine(start, end, paint);
     }
   }
   @override
-  bool shouldRepaint(covariant ConstellationPainter oldDelegate) => oldDelegate.pulse != pulse;
+  bool shouldRepaint(covariant ConstellationPainter oldDelegate) => oldDelegate.pulse != pulse || oldDelegate.size != size;
 }
 
 class RadarChartPainter extends CustomPainter {
@@ -260,26 +259,23 @@ class RadarChartPainter extends CustomPainter {
     final axes = 5;
     final angleStep = (2 * pi) / axes;
 
-    // Safe zone shader
     final safePaint = Paint()..color = Colors.green.withValues(alpha: 0.2)..style = PaintingStyle.fill;
     final safePath = Path();
     for (int i = 0; i < axes; i++) {
       double angle = i * angleStep - pi / 2;
-      double val = 0.5; // Midpoint representation of safe zones
+      double val = 0.5;
       Offset p = Offset(center.dx + cos(angle) * radius * val, center.dy + sin(angle) * radius * val);
       if (i == 0) safePath.moveTo(p.dx, p.dy); else safePath.lineTo(p.dx, p.dy);
     }
     safePath.close();
     canvas.drawPath(safePath, safePaint);
 
-    // Grid axes
     final axisPaint = Paint()..color = Colors.white12..strokeWidth = 1;
     for (int i = 0; i < axes; i++) {
       double angle = i * angleStep - pi / 2;
       canvas.drawLine(center, Offset(center.dx + cos(angle) * radius, center.dy + sin(angle) * radius), axisPaint);
     }
 
-    // Player data path
     final dataPaint = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 2;
     final dataPath = Path();
     final values = [state.gravity, state.nuclearForce, state.emForce, state.entropyRate, state.darkEnergyPressure];
@@ -295,5 +291,5 @@ class RadarChartPainter extends CustomPainter {
     canvas.drawPath(dataPath, dataPaint);
   }
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant RadarChartPainter oldDelegate) => false;
 }

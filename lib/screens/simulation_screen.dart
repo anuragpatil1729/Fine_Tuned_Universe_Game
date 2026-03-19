@@ -1,10 +1,8 @@
-// CHANGES MADE:
-// 1. Integrated the `WhisperBar` widget to display real-time atmospheric feedback.
-// 2. Added the `CODEX` button in the top-right with a notification badge for new entries.
-// 3. Implemented a "Dark Tide" pressure bar to visualize the time-pressure anomaly.
-// 4. Wrapped the main content in an `AnimatedSwitcher` with `FadeTransition` and `ScaleTransition` for cinematic stage changes.
-// 5. Updated the control panel to show the active slider with its safe zones and locked state.
-// 6. Added a StaggeredTitle component for a letter-by-letter entrance effect.
+// BUG FIXED: Bug 5 - cosmicFate navigation fires multiple times.
+// BUG FIXED: Bug 6 - Mirror Universe safe zones never passed to slider.
+// HOW: Converted to StatefulWidget to track `_navigationScheduled` flag. 
+// Moved navigation logic to a helper called during stage check.
+// Updated `_buildActiveSlider` to use all service getters for safe zones.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -20,8 +18,28 @@ import '../widgets/whisper_bar.dart';
 import 'codex_screen.dart';
 import 'result_screen.dart';
 
-class SimulationScreen extends StatelessWidget {
+class SimulationScreen extends StatefulWidget {
   const SimulationScreen({super.key});
+
+  @override
+  State<SimulationScreen> createState() => _SimulationScreenState();
+}
+
+class _SimulationScreenState extends State<SimulationScreen> {
+  bool _navigationScheduled = false;
+
+  void _maybeNavigateToResult(UniverseStage stage) {
+    if (stage == UniverseStage.cosmicFate && !_navigationScheduled) {
+      _navigationScheduled = true;
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const ResultScreen()),
+          );
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,15 +49,7 @@ class SimulationScreen extends StatelessWidget {
         final activeAnomaly = anomaly.activeAnomaly;
         
         if (state.stage == UniverseStage.cosmicFate) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Future.delayed(const Duration(seconds: 4), () {
-              if (Navigator.of(context).canPop()) {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (_) => const ResultScreen()),
-                );
-              }
-            });
-          });
+          _maybeNavigateToResult(state.stage);
         }
 
         return Scaffold(
@@ -217,8 +227,8 @@ class SimulationScreen extends StatelessWidget {
         return ConstantSlider(
           label: "EM FORCE",
           value: state.emForce,
-          safeMin: GameConstants.emForceMin,
-          safeMax: GameConstants.emForceMax,
+          safeMin: sim.effectiveEmMin,
+          safeMax: sim.effectiveEmMax,
           onChanged: sim.updateEMForce,
           isLocked: sim.isLocked("em"),
         );
@@ -226,8 +236,8 @@ class SimulationScreen extends StatelessWidget {
         return ConstantSlider(
           label: "ENTROPY RATE",
           value: state.entropyRate,
-          safeMin: GameConstants.entropyRateMin,
-          safeMax: GameConstants.entropyRateMax,
+          safeMin: sim.effectiveEntropyMin,
+          safeMax: sim.effectiveEntropyMax,
           onChanged: sim.updateEntropyRate,
           isLocked: sim.isLocked("entropy"),
         );
@@ -235,8 +245,8 @@ class SimulationScreen extends StatelessWidget {
         return ConstantSlider(
           label: "DARK ENERGY",
           value: state.darkEnergyPressure,
-          safeMin: GameConstants.darkEnergyMin,
-          safeMax: GameConstants.darkEnergyMax,
+          safeMin: sim.effectiveDarkEnergyMin,
+          safeMax: sim.effectiveDarkEnergyMax,
           onChanged: sim.updateDarkEnergy,
           isLocked: sim.isLocked("darkEnergy"),
         );
