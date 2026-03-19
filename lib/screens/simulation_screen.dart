@@ -1,4 +1,11 @@
-// FEATURE: Civilization Layer // WHAT CHANGED: Converted to StatefulWidget, integrated ConsequenceTicker, and added the Civilization stages (Dawn, Tech, Legacy). Added visual scale "pulse" on slider changes. // WHY: To support the expanded game stages and provide real-time causal feedback to the player.
+// FEATURE: Civilization Layer & Bug Fixes
+// WHAT CHANGED:
+// 1. Converted to StatefulWidget to handle Bug 5 (duplicate navigation).
+// 2. Added `_navigationScheduled` flag to ensure ResultScreen is pushed exactly once.
+// 3. Integrated `ConsequenceTicker` for real-time causal feedback.
+// 4. Added "Observatory" button to AppBar.
+// 5. Updated "WITNESS DESTINY" button logic to support both phase endings (stellarDeath and technologicalAge).
+// 6. Added scale pulse enhancement on slider interaction.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';

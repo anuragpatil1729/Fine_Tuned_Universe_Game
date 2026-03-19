@@ -152,12 +152,15 @@ class SimulationService extends ChangeNotifier {
       } else {
         _finishSimulation(initialOutcome, UniverseStage.cosmicFate);
       }
-    } else if (_currentUniverse.stage == UniverseStage.cosmicLegacy) {
+    } else if (_currentUniverse.stage == UniverseStage.technologicalAge) {
       final civOutcome = SimulationEngine.calculateCivilizationOutcome(
         _currentUniverse.cooperationIndex,
         _currentUniverse.energyConsumption,
       );
-      _finishSimulation(civOutcome, UniverseStage.cosmicLegacy); // Stays in legacy for viewing
+      _finishSimulation(civOutcome, UniverseStage.cosmicLegacy);
+    } else if (_currentUniverse.stage == UniverseStage.cosmicLegacy) {
+      // Logic for finalizing if needed, though cosmicLegacy is final state.
+      // The requirement says cosmicLegacy is READ ONLY - final fate.
     } else {
       final nextIndex = _currentUniverse.stage.index + 1;
       _currentUniverse = _currentUniverse.copyWith(stage: UniverseStage.values[nextIndex]);

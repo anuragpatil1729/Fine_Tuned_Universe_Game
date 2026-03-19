@@ -1,0 +1,34 @@
+# CHANGES MADE:
+# 1. Added Firebase dependencies (core, auth, firestore, analytics).
+# 2. Retained existing dependencies.
+
+name: finetuneduniverse
+description: "Fine-Tuned Universe: Firebase Integration"
+publish_to: 'none'
+version: 1.2.0+3
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.1
+  google_fonts: ^6.1.0
+  audioplayers: ^5.2.1
+  share_plus: ^7.2.2
+  shared_preferences: ^2.2.2
+  sensors_plus: ^5.0.1
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+  firebase_analytics: ^11.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

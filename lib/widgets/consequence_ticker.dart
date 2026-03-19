@@ -1,4 +1,4 @@
-// FEATURE: Observable Consequences Ticker // WHAT CHANGED: Created a real-time auto-scrolling event feed that narrates cosmic causality based on current constant values. // WHY: To provide immediate, immersive feedback on the scientific implications of the player's tuning.
+// FEATURE: Observable Consequences Ticker // WHAT CHANGED: Removed unused `_animationController`. Optimized scrolling logic to use only `_scrollController`. // WHY: To reduce unnecessary vsync registrations and simplify the widget.
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -26,9 +26,8 @@ class ConsequenceTicker extends StatefulWidget {
   State<ConsequenceTicker> createState() => _ConsequenceTickerState();
 }
 
-class _ConsequenceTickerState extends State<ConsequenceTicker> with SingleTickerProviderStateMixin {
+class _ConsequenceTickerState extends State<ConsequenceTicker> {
   late ScrollController _scrollController;
-  late AnimationController _animationController;
   List<String> _currentEvents = [];
 
   @override
@@ -37,12 +36,7 @@ class _ConsequenceTickerState extends State<ConsequenceTicker> with SingleTicker
     _scrollController = ScrollController();
     _currentEvents = _generateEvents();
     
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 10), // Base speed, updated dynamically
-    );
-
-    _startScrolling();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startScrolling());
   }
 
   @override
@@ -54,14 +48,15 @@ class _ConsequenceTickerState extends State<ConsequenceTicker> with SingleTicker
         oldWidget.em != widget.em ||
         oldWidget.entropy != widget.entropy ||
         oldWidget.darkEnergy != widget.darkEnergy) {
-      _currentEvents = _generateEvents();
+      setState(() {
+        _currentEvents = _generateEvents();
+      });
     }
   }
 
   void _startScrolling() async {
     if (!mounted) return;
     
-    // Auto-scroll loop
     while (mounted) {
       if (_scrollController.hasClients) {
         final maxScroll = _scrollController.position.maxScrollExtent;
@@ -70,13 +65,9 @@ class _ConsequenceTickerState extends State<ConsequenceTicker> with SingleTicker
         
         if (remainingDistance <= 0) {
           _scrollController.jumpTo(0);
-          setState(() {
-            _currentEvents = _generateEvents();
-          });
           continue;
         }
 
-        // Calculate duration to maintain 30px/sec
         final durationMs = (remainingDistance / 30 * 1000).toInt();
         
         await _scrollController.animateTo(
@@ -194,12 +185,13 @@ class _ConsequenceTickerState extends State<ConsequenceTicker> with SingleTicker
   @override
   void dispose() {
     _scrollController.dispose();
-    _animationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_currentEvents.isEmpty) return const SizedBox(height: 28);
+    
     return Container(
       height: 28,
       color: Colors.black26,
@@ -218,7 +210,6 @@ class _ConsequenceTickerState extends State<ConsequenceTicker> with SingleTicker
           scrollDirection: Axis.horizontal,
           physics: const NeverScrollableScrollPhysics(),
           itemBuilder: (context, index) {
-            if (_currentEvents.isEmpty) return const SizedBox.shrink();
             final eventIndex = index % _currentEvents.length;
             final event = _currentEvents[eventIndex];
             final isWarning = event.startsWith("WARNING");
