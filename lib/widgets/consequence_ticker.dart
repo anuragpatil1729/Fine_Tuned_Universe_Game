@@ -218,6 +218,7 @@ class _ConsequenceTickerState extends State<ConsequenceTicker> with SingleTicker
           scrollDirection: Axis.horizontal,
           physics: const NeverScrollableScrollPhysics(),
           itemBuilder: (context, index) {
+            if (_currentEvents.isEmpty) return const SizedBox.shrink();
             final eventIndex = index % _currentEvents.length;
             final event = _currentEvents[eventIndex];
             final isWarning = event.startsWith("WARNING");
