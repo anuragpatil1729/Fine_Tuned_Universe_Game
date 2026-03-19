@@ -1,3 +1,11 @@
+// CHANGES MADE:
+// 1. Implemented a persistent starfield background using 150 stars with randomized positions and twinkling animations.
+// 2. Updated the narrative subtitle to reflect the new "Birth to Death" concept: "From the first spark to the final silence."
+// 3. Added a returning player readout: "Previous universes: X created, Y survived" (where survived = Eternal Garden).
+// 4. Refined the visual styling with a darker, more centered layout to focus on the cosmic atmosphere.
+// 5. Used a single looping `AnimationController` to drive all star twinkling for performance efficiency.
+
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,76 +13,142 @@ import '../core/constants.dart';
 import '../services/simulation_service.dart';
 import 'simulation_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _starController;
+
+  @override
+  void initState() {
+    super.initState();
+    _starController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _starController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: GameConstants.spaceBlack,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [GameConstants.cosmicPurple, GameConstants.spaceBlack],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return Consumer<SimulationService>(
+      builder: (context, service, child) {
+        final history = service.history;
+        final survived = history.where((u) => u.outcome == UniverseOutcome.eternalGarden).length;
+
+        return Scaffold(
+          backgroundColor: GameConstants.spaceBlack,
+          body: Stack(
             children: [
-              Text(
-                'FINE-TUNED',
-                style: GoogleFonts.orbitron(
-                  fontSize: 42,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 8,
+              // Twinkling Starfield
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: StarfieldPainter(_starController),
                 ),
               ),
-              Text(
-                'UNIVERSE',
-                style: GoogleFonts.orbitron(
-                  fontSize: 24,
-                  color: Colors.white70,
-                  letterSpacing: 4,
-                ),
-              ),
-              const SizedBox(height: 60),
-              ElevatedButton(
-                onPressed: () {
-                  context.read<SimulationService>().reset();
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SimulationScreen()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: GameConstants.cosmicPurple,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-                child: const Text(
-                  'BEGIN CREATION',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 40),
-                child: Text(
-                  "Balance the fundamental constants of nature to foster life. Too much gravity, and everything collapses. Too little, and stars never form.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white54, height: 1.5),
+              
+              Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'FINE-TUNED',
+                      style: GoogleFonts.orbitron(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 10,
+                      ),
+                    ),
+                    Text(
+                      'UNIVERSE',
+                      style: GoogleFonts.orbitron(
+                        fontSize: 28,
+                        color: Colors.white70,
+                        letterSpacing: 6,
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    Text(
+                      "From the first spark to the final silence.",
+                      style: GoogleFonts.exo2(
+                        color: Colors.white38,
+                        fontSize: 14,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: 80),
+                    ElevatedButton(
+                      onPressed: () {
+                        service.reset();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const SimulationScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 20),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+                        elevation: 10,
+                      ),
+                      child: const Text(
+                        'BEGIN THE ARC',
+                        style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2),
+                      ),
+                    ),
+                    
+                    if (history.isNotEmpty) ...[
+                      const SizedBox(height: 30),
+                      Text(
+                        "Previous universes: ${history.length} created, $survived survived",
+                        style: const TextStyle(color: Colors.white24, fontSize: 12),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
+}
+
+class StarfieldPainter extends CustomPainter {
+  final Animation<double> animation;
+  final List<Offset> starPositions;
+  final List<double> starSizes;
+
+  StarfieldPainter(this.animation)
+      : starPositions = List.generate(150, (_) => Offset(Random().nextDouble(), Random().nextDouble())),
+        starSizes = List.generate(150, (_) => Random().nextDouble() * 2),
+        super(repaint: animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white;
+    for (int i = 0; i < starPositions.length; i++) {
+      double opacity = (sin(animation.value * 2 * pi + i) + 1) / 2;
+      paint.color = Colors.white.withOpacity(opacity * 0.8);
+      canvas.drawCircle(
+        Offset(starPositions[i].dx * size.width, starPositions[i].dy * size.height),
+        starSizes[i],
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
