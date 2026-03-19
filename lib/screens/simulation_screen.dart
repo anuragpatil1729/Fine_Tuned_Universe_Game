@@ -1,19 +1,23 @@
 // CHANGES MADE:
-// 1. Implemented a smooth lifecycle transition system using `AnimatedSwitcher` with combined Fade and Scale transitions.
-// 2. Created a `StaggeredTextWidget` to animate stage titles character-by-character for a more dramatic, high-fidelity feel.
-// 3. Updated the control layout to show ONLY the active slider for the current stage, reducing cognitive load.
-// 4. Integrated the new 6-stage lifecycle, passing all 5 physical constants to the `UniverseVisual`.
-// 5. Added a "Cosmic Fate" stage transition that automatically navigates to the result screen after a brief viewing period.
-// 6. Refined the UI to be more immersive, focusing the player's attention on the authoring of the universe's arc.
+// 1. Integrated the `WhisperBar` widget to display real-time atmospheric feedback.
+// 2. Added the `CODEX` button in the top-right with a notification badge for new entries.
+// 3. Implemented a "Dark Tide" pressure bar to visualize the time-pressure anomaly.
+// 4. Wrapped the main content in an `AnimatedSwitcher` with `FadeTransition` and `ScaleTransition` for cinematic stage changes.
+// 5. Updated the control panel to show the active slider with its safe zones and locked state.
+// 6. Added a StaggeredTitle component for a letter-by-letter entrance effect.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants.dart';
 import '../services/simulation_service.dart';
+import '../services/codex_service.dart';
+import '../services/anomaly_service.dart';
 import '../widgets/constant_slider.dart';
 import '../widgets/universe_visual.dart';
-import '../widgets/background_universes.dart';
+import '../widgets/multiverse_observatory.dart';
+import '../widgets/whisper_bar.dart';
+import 'codex_screen.dart';
 import 'result_screen.dart';
 
 class SimulationScreen extends StatelessWidget {
@@ -21,9 +25,10 @@ class SimulationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SimulationService>(
-      builder: (context, service, child) {
-        final state = service.currentUniverse;
+    return Consumer3<SimulationService, CodexService, AnomalyService>(
+      builder: (context, sim, codex, anomaly, child) {
+        final state = sim.currentUniverse;
+        final activeAnomaly = anomaly.activeAnomaly;
         
         if (state.stage == UniverseStage.cosmicFate) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -39,87 +44,121 @@ class SimulationScreen extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: GameConstants.spaceBlack,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            automaticallyImplyLeading: false,
+            actions: [
+              Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.menu_book, color: Colors.white70),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CodexScreen()),
+                    ),
+                  ),
+                  if (codex.hasNewEntries)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: Colors.cyanAccent,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 10),
+            ],
+          ),
           body: Stack(
             children: [
-              BackgroundUniverses(history: service.history),
+              MultiverseObservatory(history: sim.history),
               SafeArea(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 600),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(
-                        scale: Tween<double>(begin: 0.95, end: 1.0).animate(animation),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Column(
-                    key: ValueKey(state.stage),
-                    children: [
-                      const SizedBox(height: 20),
-                      StaggeredTextWidget(
-                        text: _getStageTitle(state.stage),
-                        style: GoogleFonts.orbitron(
-                          color: Colors.white,
-                          fontSize: 24,
-                          letterSpacing: 4,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 40),
-                        child: Text(
-                          _getStageDescription(state.stage),
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4),
-                        ),
-                      ),
-                      
-                      Expanded(
-                        child: Center(
-                          child: UniverseVisual(
-                            stage: state.stage,
-                            gravity: state.gravity,
-                            nuclear: state.nuclearForce,
-                            em: state.emForce,
-                            entropy: state.entropyRate,
-                            darkEnergy: state.darkEnergyPressure,
-                          ),
-                        ),
-                      ),
-                      
-                      if (state.stage != UniverseStage.cosmicFate)
-                        Container(
-                          padding: const EdgeInsets.all(30),
-                          decoration: const BoxDecoration(
-                            color: Colors.black45,
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildActiveSlider(service),
-                              const SizedBox(height: 30),
-                              ElevatedButton(
-                                onPressed: () => service.nextStage(),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Colors.black,
-                                  padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 18),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                                ),
-                                child: Text(
-                                  state.stage == UniverseStage.stellarDeath ? "WITNESS THE END" : "ADVANCE AEON",
-                                  style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2),
+                child: Column(
+                  children: [
+                    if (activeAnomaly?.id == "dark_tide")
+                      _buildPressureBar(state.darkEnergyPressure),
+                    
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 600),
+                        transitionBuilder: (child, animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: ScaleTransition(
+                              scale: Tween<double>(begin: 0.95, end: 1.0).animate(animation),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Column(
+                          key: ValueKey(state.stage),
+                          children: [
+                            const SizedBox(height: 10),
+                            _StaggeredTitle(text: _getStageTitle(state.stage)),
+                            const SizedBox(height: 10),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 40),
+                              child: Text(
+                                _getStageDescription(state.stage),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.white38, fontSize: 12),
+                              ),
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: UniverseVisual(
+                                  stage: state.stage,
+                                  gravity: state.gravity,
+                                  nuclear: state.nuclearForce,
+                                  em: state.emForce,
+                                  entropy: state.entropyRate,
+                                  darkEnergy: state.darkEnergyPressure,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          WhisperBar(whisper: sim.currentWhisper),
+                          const SizedBox(height: 10),
+                          if (state.stage != UniverseStage.cosmicFate) ...[
+                            _buildActiveSlider(sim),
+                            const SizedBox(height: 20),
+                            ElevatedButton(
+                              onPressed: () => sim.nextStage(),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.black,
+                                padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 15),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                              ),
+                              child: Text(
+                                state.stage == UniverseStage.stellarDeath ? "WITNESS DESTINY" : "NEXT ERA",
+                                style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -129,32 +168,59 @@ class SimulationScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildActiveSlider(SimulationService service) {
-    final state = service.currentUniverse;
+  Widget _buildPressureBar(double pressure) {
+    bool danger = pressure > 0.70;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 10),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("DARK TIDE PRESSURE", style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1)),
+              Text("${(pressure * 100).toInt()}%", style: TextStyle(color: danger ? Colors.red : Colors.white38, fontSize: 10)),
+            ],
+          ),
+          const SizedBox(height: 5),
+          LinearProgressIndicator(
+            value: pressure / 0.8,
+            backgroundColor: Colors.white10,
+            valueColor: AlwaysStoppedAnimation<Color>(danger ? Colors.red : Colors.cyanAccent),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActiveSlider(SimulationService sim) {
+    final state = sim.currentUniverse;
     switch (state.stage) {
       case UniverseStage.cosmicDawn:
         return ConstantSlider(
-          label: "GRAVITATIONAL CONSTANT",
+          label: "GRAVITY",
           value: state.gravity,
-          safeMin: GameConstants.gravityMin,
-          safeMax: GameConstants.gravityMax,
-          onChanged: service.updateGravity,
+          safeMin: sim.effectiveGravityMin,
+          safeMax: sim.effectiveGravityMax,
+          onChanged: sim.updateGravity,
+          isLocked: sim.isLocked("gravity"),
         );
       case UniverseStage.stellarAge:
         return ConstantSlider(
-          label: "STRONG NUCLEAR FORCE",
+          label: "NUCLEAR FORCE",
           value: state.nuclearForce,
-          safeMin: GameConstants.nuclearForceMin,
-          safeMax: GameConstants.nuclearForceMax,
-          onChanged: service.updateNuclearForce,
+          safeMin: sim.effectiveNuclearMin,
+          safeMax: sim.effectiveNuclearMax,
+          onChanged: sim.updateNuclearForce,
+          isLocked: sim.isLocked("nuclear"),
         );
       case UniverseStage.galacticAge:
         return ConstantSlider(
-          label: "ELECTROMAGNETIC FORCE",
+          label: "EM FORCE",
           value: state.emForce,
           safeMin: GameConstants.emForceMin,
           safeMax: GameConstants.emForceMax,
-          onChanged: service.updateEMForce,
+          onChanged: sim.updateEMForce,
+          isLocked: sim.isLocked("em"),
         );
       case UniverseStage.lifeAge:
         return ConstantSlider(
@@ -162,15 +228,17 @@ class SimulationScreen extends StatelessWidget {
           value: state.entropyRate,
           safeMin: GameConstants.entropyRateMin,
           safeMax: GameConstants.entropyRateMax,
-          onChanged: service.updateEntropyRate,
+          onChanged: sim.updateEntropyRate,
+          isLocked: sim.isLocked("entropy"),
         );
       case UniverseStage.stellarDeath:
         return ConstantSlider(
-          label: "DARK ENERGY PRESSURE",
+          label: "DARK ENERGY",
           value: state.darkEnergyPressure,
           safeMin: GameConstants.darkEnergyMin,
           safeMax: GameConstants.darkEnergyMax,
-          onChanged: service.updateDarkEnergy,
+          onChanged: sim.updateDarkEnergy,
+          isLocked: sim.isLocked("darkEnergy"),
         );
       default:
         return const SizedBox.shrink();
@@ -190,27 +258,25 @@ class SimulationScreen extends StatelessWidget {
 
   String _getStageDescription(UniverseStage stage) {
     switch (stage) {
-      case UniverseStage.cosmicDawn: return "The Big Bang ignites. Tune gravity to prevent immediate collapse or dissipation.";
-      case UniverseStage.stellarAge: return "First stars blaze. The nuclear force determines the lifespan and heat of the suns.";
-      case UniverseStage.galacticAge: return "Galaxies coalesce. Electromagnetism binds matter into spiral islands of light.";
-      case UniverseStage.lifeAge: return "Life emerges. Entropy determines if complexity can survive the arrow of time.";
-      case UniverseStage.stellarDeath: return "Stars begin to die. Dark energy determines the final expansion of the void.";
-      case UniverseStage.cosmicFate: return "The arc is complete. Observe the final destiny of your creation.";
+      case UniverseStage.cosmicDawn: return "The singularity expands. Establish the foundation of order.";
+      case UniverseStage.stellarAge: return "Hydrogen ignites. The first light negotiates with the dark.";
+      case UniverseStage.galacticAge: return "Matter clusters into spiral islands. Atoms seek resonance.";
+      case UniverseStage.lifeAge: return "The mirror of consciousness awakens. Complexity fights entropy.";
+      case UniverseStage.stellarDeath: return "Fuel runs dry. The final expansion begins its acceleration.";
+      case UniverseStage.cosmicFate: return "The arc reaches its conclusion. Observe your handiwork.";
     }
   }
 }
 
-class StaggeredTextWidget extends StatefulWidget {
+class _StaggeredTitle extends StatefulWidget {
   final String text;
-  final TextStyle style;
-
-  const StaggeredTextWidget({super.key, required this.text, required this.style});
+  const _StaggeredTitle({required this.text});
 
   @override
-  State<StaggeredTextWidget> createState() => _StaggeredTextWidgetState();
+  State<_StaggeredTitle> createState() => _StaggeredTitleState();
 }
 
-class _StaggeredTextWidgetState extends State<StaggeredTextWidget> with TickerProviderStateMixin {
+class _StaggeredTitleState extends State<_StaggeredTitle> with TickerProviderStateMixin {
   late List<AnimationController> _controllers;
   late List<Animation<double>> _animations;
 
@@ -223,28 +289,21 @@ class _StaggeredTextWidgetState extends State<StaggeredTextWidget> with TickerPr
   void _initAnimations() {
     _controllers = List.generate(
       widget.text.length,
-      (index) => AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 300),
-      ),
+      (index) => AnimationController(vsync: this, duration: const Duration(milliseconds: 300)),
     );
-
-    _animations = _controllers.map((c) => Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: c, curve: Curves.easeIn),
-    )).toList();
-
-    _startStaggeredAnimation();
+    _animations = _controllers.map((c) => Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: c, curve: Curves.easeIn))).toList();
+    _play();
   }
 
-  void _startStaggeredAnimation() async {
-    for (var controller in _controllers) {
-      controller.forward();
+  void _play() async {
+    for (var c in _controllers) {
+      c.forward();
       await Future.delayed(const Duration(milliseconds: 80));
     }
   }
 
   @override
-  void didUpdateWidget(StaggeredTextWidget oldWidget) {
+  void didUpdateWidget(_StaggeredTitle oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.text != widget.text) {
       for (var c in _controllers) {
@@ -269,7 +328,10 @@ class _StaggeredTextWidgetState extends State<StaggeredTextWidget> with TickerPr
       children: List.generate(widget.text.length, (index) {
         return FadeTransition(
           opacity: _animations[index],
-          child: Text(widget.text[index], style: widget.style),
+          child: Text(
+            widget.text[index],
+            style: GoogleFonts.orbitron(color: Colors.white, fontSize: 24, letterSpacing: 4, fontWeight: FontWeight.bold),
+          ),
         );
       }),
     );

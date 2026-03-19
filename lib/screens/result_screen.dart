@@ -1,12 +1,7 @@
 // CHANGES MADE:
-// 1. Implemented a full-screen animated background system driven by CustomPainters for each of the 4 new endings.
-// 2. Eternal Garden: Emerald aurora waves and golden particle bloom.
-// 3. Last Light: White flash fading to drifting embers.
-// 4. Great Collapse: Red/black implosion vortex with screen shake.
-// 5. Eternal Recurrence: Ouroboros-style expansion/contraction loop.
-// 6. Added a 2-second delay for the "PLAY AGAIN" button's appearance to emphasize the visual conclusion.
-// 7. Added "SHARE THIS UNIVERSE" functionality to copy outcome and constants to the clipboard.
-// 8. Displayed all 5 lifecycle constants with their safe-zone indicators.
+// 1. Added missing import for `Anomaly` model to fix `Undefined class` error.
+// 2. Removed unused local variable `activeAnomaly` in the builder to fix warning.
+// 3. Updated `withOpacity` to `withValues` to follow modern standards.
 
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -16,6 +11,9 @@ import 'package:share_plus/share_plus.dart';
 import '../core/constants.dart';
 import '../core/simulation_engine.dart';
 import '../services/simulation_service.dart';
+import '../services/anomaly_service.dart';
+import '../services/codex_service.dart';
+import '../models/anomaly.dart';
 
 class ResultScreen extends StatefulWidget {
   const ResultScreen({super.key});
@@ -49,29 +47,27 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SimulationService>(
-      builder: (context, service, child) {
-        final state = service.currentUniverse;
+    return Consumer3<SimulationService, AnomalyService, CodexService>(
+      builder: (context, sim, anomaly, codex, child) {
+        final state = sim.currentUniverse;
         final outcome = state.outcome;
 
         return Scaffold(
           backgroundColor: Colors.black,
           body: Stack(
             children: [
-              // Full screen animated background
               Positioned.fill(
                 child: CustomPaint(
                   painter: _getEndingPainter(outcome, _controller.value),
                 ),
               ),
 
-              // Shake effect for Great Collapse
               if (outcome == UniverseOutcome.greatCollapse)
                 _buildShakeWrapper(
-                  child: _buildContent(context, service),
+                  child: _buildContent(context, sim, anomaly, codex),
                 )
               else
-                _buildContent(context, service),
+                _buildContent(context, sim, anomaly, codex),
             ],
           ),
         );
@@ -92,9 +88,10 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildContent(BuildContext context, SimulationService service) {
-    final state = service.currentUniverse;
+  Widget _buildContent(BuildContext context, SimulationService sim, AnomalyService anomaly, CodexService codex) {
+    final state = sim.currentUniverse;
     final outcome = state.outcome;
+    final activeAnomaly = anomaly.activeAnomaly;
 
     return SafeArea(
       child: Center(
@@ -103,6 +100,10 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              if (activeAnomaly != null)
+                _buildAnomalyBanner(activeAnomaly),
+              
+              const SizedBox(height: 20),
               Text(
                 outcome.name.replaceAll(RegExp(r'(?=[A-Z])'), ' ').toUpperCase(),
                 textAlign: TextAlign.center,
@@ -119,6 +120,12 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.white70, fontSize: 14, fontStyle: FontStyle.italic),
               ),
+              const SizedBox(height: 20),
+              if (codex.hasNewEntries)
+                const Text(
+                  "NEW CODEX ENTRIES UNLOCKED",
+                  style: TextStyle(color: GameConstants.lifeGreen, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1),
+                ),
               const SizedBox(height: 40),
               Container(
                 padding: const EdgeInsets.all(20),
@@ -138,7 +145,7 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
               _buildStatRow("Nuclear", state.nuclearForce, GameConstants.nuclearForceMin, GameConstants.nuclearForceMax),
               _buildStatRow("EM Force", state.emForce, GameConstants.emForceMin, GameConstants.emForceMax),
               _buildStatRow("Entropy", state.entropyRate, GameConstants.entropyRateMin, GameConstants.entropyRateMax),
-              _statRowDarkEnergy(state.darkEnergyPressure),
+              _buildStatRow("Dark Energy", state.darkEnergyPressure, GameConstants.darkEnergyMin, GameConstants.darkEnergyMax),
               
               const SizedBox(height: 60),
               AnimatedOpacity(
@@ -148,7 +155,7 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
                   children: [
                     ElevatedButton(
                       onPressed: () {
-                        service.reset();
+                        sim.reset();
                         Navigator.of(context).popUntil((route) => route.isFirst);
                       },
                       style: ElevatedButton.styleFrom(
@@ -178,6 +185,41 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
     );
   }
 
+  Widget _buildAnomalyBanner(Anomaly anomaly) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            "ANOMALY: ${anomaly.name}",
+            style: GoogleFonts.orbitron(color: Colors.amber, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+          if (anomaly.isCompleted)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.military_tech, color: Colors.amber, size: 16),
+                  const SizedBox(width: 5),
+                  Text(
+                    "BADGE EARNED: ${anomaly.badgeLabel}",
+                    style: const TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatRow(String label, double value, double min, double max) {
     bool isOk = value >= min && value <= max;
     return Padding(
@@ -199,11 +241,6 @@ class _ResultScreenState extends State<ResultScreen> with SingleTickerProviderSt
         ],
       ),
     );
-  }
-
-  Widget _statRowDarkEnergy(double value) {
-    bool isOk = value >= GameConstants.darkEnergyMin && value <= GameConstants.darkEnergyMax;
-    return _buildStatRow("Dark Energy", value, GameConstants.darkEnergyMin, GameConstants.darkEnergyMax);
   }
 
   CustomPainter _getEndingPainter(UniverseOutcome outcome, double animationValue) {
@@ -229,12 +266,10 @@ class EternalGardenPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    
-    // Aurora waves
     for (int i = 0; i < 3; i++) {
       final paint = Paint()
         ..shader = LinearGradient(
-          colors: [Colors.teal.withOpacity(0.0), Colors.green.withOpacity(0.2), Colors.teal.withOpacity(0.0)],
+          colors: [Colors.teal.withValues(alpha: 0.0), Colors.green.withValues(alpha: 0.2), Colors.teal.withValues(alpha: 0.0)],
         ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
       
       double offset = (animationValue * 2 * pi + i * 2) % (2 * pi);
@@ -247,21 +282,16 @@ class EternalGardenPainter extends CustomPainter {
       path.lineTo(0, size.height);
       canvas.drawPath(path, paint);
     }
-
-    // Golden particles
-    final pPaint = Paint()..color = GameConstants.starGold.withOpacity(0.3);
+    final pPaint = Paint()..color = GameConstants.starGold.withValues(alpha: 0.3);
     for (int i = 0; i < 30; i++) {
       double angle = i * 1.5 + animationValue * 2;
       double dist = (i * 10.0 + animationValue * 100) % 300;
       canvas.drawCircle(Offset(center.dx + cos(angle) * dist, center.dy + sin(angle) * dist), 2, pPaint);
     }
-
-    // Rings
     final rPaint = Paint()..style = PaintingStyle.stroke..color = Colors.white10..strokeWidth = 1;
     canvas.drawCircle(center, 100, rPaint);
     canvas.drawCircle(center, 150, rPaint);
   }
-
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
@@ -269,40 +299,30 @@ class EternalGardenPainter extends CustomPainter {
 class LastLightPainter extends CustomPainter {
   final double animationValue;
   LastLightPainter(this.animationValue);
-
   @override
   void paint(Canvas canvas, Size size) {
-    // White flash fading
     double opacity = (1.0 - (animationValue * 5) % 1.0).clamp(0.0, 1.0);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = Colors.white.withOpacity(opacity * 0.5));
-
-    // Drifting embers
-    final pPaint = Paint()..color = Colors.orangeAccent.withOpacity(0.4);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), Paint()..color = Colors.white.withValues(alpha: opacity * 0.5));
+    final pPaint = Paint()..color = Colors.orangeAccent.withValues(alpha: 0.4);
     for (int i = 0; i < 20; i++) {
       double x = (i * 20.0 + animationValue * 50) % size.width;
       double y = (size.height - (i * 30.0 + animationValue * 200) % size.height);
-      canvas.drawCircle(Offset(x, y), 2, pPaint..color = pPaint.color.withOpacity((y / size.height) * 0.4));
+      canvas.drawCircle(Offset(x, y), 2, pPaint..color = pPaint.color.withValues(alpha: (y / size.height) * 0.4));
     }
   }
-
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant LastLightPainter oldDelegate) => true;
 }
 
 class GreatCollapsePainter extends CustomPainter {
   final double animationValue;
   GreatCollapsePainter(this.animationValue);
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    
-    // Pulse
     double pulse = (sin(animationValue * 10) + 1) / 2;
-    canvas.drawCircle(center, 200, Paint()..shader = RadialGradient(colors: [Colors.red.withOpacity(0.2 * pulse), Colors.black]).createShader(Rect.fromCircle(center: center, radius: 200)));
-
-    // Spiral particles
-    final pPaint = Paint()..color = Colors.redAccent.withOpacity(0.6);
+    canvas.drawCircle(center, 200, Paint()..shader = RadialGradient(colors: [Colors.red.withValues(alpha: 0.2 * pulse), Colors.black]).createShader(Rect.fromCircle(center: center, radius: 200)));
+    final pPaint = Paint()..color = Colors.redAccent.withValues(alpha: 0.6);
     for (int i = 0; i < 100; i++) {
       double t = (i / 100.0 + animationValue) % 1.0;
       double angle = t * 10 * pi;
@@ -310,29 +330,22 @@ class GreatCollapsePainter extends CustomPainter {
       canvas.drawCircle(Offset(center.dx + cos(angle) * dist, center.dy + sin(angle) * dist), 2, pPaint);
     }
   }
-
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant GreatCollapsePainter oldDelegate) => true;
 }
 
 class EternalRecurrencePainter extends CustomPainter {
   final double animationValue;
   EternalRecurrencePainter(this.animationValue);
-
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     double cycle = (sin(animationValue * 2 * pi / 3 * 10) + 1) / 2;
-    
-    // Expand/Collapse circle
     double radius = 10 + cycle * 150;
-    canvas.drawCircle(center, radius, Paint()..color = GameConstants.cosmicPurple.withOpacity(0.4)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20));
-    
-    // Ouroboros ring
+    canvas.drawCircle(center, radius, Paint()..color = GameConstants.cosmicPurple.withValues(alpha: 0.4)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20));
     final rPaint = Paint()..style = PaintingStyle.stroke..color = Colors.white24..strokeWidth = 2;
     canvas.drawCircle(center, radius, rPaint);
   }
-
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant EternalRecurrencePainter oldDelegate) => true;
 }

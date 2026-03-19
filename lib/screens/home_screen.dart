@@ -1,9 +1,10 @@
 // CHANGES MADE:
 // 1. Implemented a persistent starfield background using 150 stars with randomized positions and twinkling animations.
 // 2. Updated the narrative subtitle to reflect the new "Birth to Death" concept: "From the first spark to the final silence."
-// 3. Added a returning player readout: "Previous universes: X created, Y survived" (where survived = Eternal Garden).
+// 3. Added returning player readout: "Badges: X / 5" and "Codex: X / 12".
 // 4. Refined the visual styling with a darker, more centered layout to focus on the cosmic atmosphere.
 // 5. Used a single looping `AnimationController` to drive all star twinkling for performance efficiency.
+// 6. Integrated with `AnomalyService` and `CodexService` for progress tracking.
 
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -11,7 +12,9 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants.dart';
 import '../services/simulation_service.dart';
-import 'simulation_screen.dart';
+import '../services/codex_service.dart';
+import '../services/anomaly_service.dart';
+import 'anomaly_selection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -40,9 +43,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<SimulationService>(
-      builder: (context, service, child) {
-        final history = service.history;
+    return Consumer3<SimulationService, CodexService, AnomalyService>(
+      builder: (context, sim, codex, anomaly, child) {
+        final history = sim.history;
         final survived = history.where((u) => u.outcome == UniverseOutcome.eternalGarden).length;
 
         return Scaffold(
@@ -89,9 +92,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     const SizedBox(height: 80),
                     ElevatedButton(
                       onPressed: () {
-                        service.reset();
+                        sim.reset();
                         Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const SimulationScreen()),
+                          MaterialPageRoute(builder: (_) => const AnomalySelectionScreen()),
                         );
                       },
                       style: ElevatedButton.styleFrom(
@@ -107,11 +110,20 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       ),
                     ),
                     
+                    const SizedBox(height: 40),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _ProgressIndicator(label: "Badges", value: anomaly.completedCount, total: 5),
+                        const SizedBox(width: 30),
+                        _ProgressIndicator(label: "Codex", value: codex.unlockedCount, total: 12),
+                      ],
+                    ),
                     if (history.isNotEmpty) ...[
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
                       Text(
-                        "Previous universes: ${history.length} created, $survived survived",
-                        style: const TextStyle(color: Colors.white24, fontSize: 12),
+                        "Universes created: ${history.length} | Survived: $survived",
+                        style: const TextStyle(color: Colors.white10, fontSize: 10, letterSpacing: 1),
                       ),
                     ],
                   ],
@@ -121,6 +133,30 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ),
         );
       },
+    );
+  }
+}
+
+class _ProgressIndicator extends StatelessWidget {
+  final String label;
+  final int value;
+  final int total;
+
+  const _ProgressIndicator({required this.label, required this.value, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          "$value / $total",
+          style: GoogleFonts.orbitron(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(color: Colors.white24, fontSize: 10, letterSpacing: 2),
+        ),
+      ],
     );
   }
 }
@@ -140,7 +176,7 @@ class StarfieldPainter extends CustomPainter {
     final paint = Paint()..color = Colors.white;
     for (int i = 0; i < starPositions.length; i++) {
       double opacity = (sin(animation.value * 2 * pi + i) + 1) / 2;
-      paint.color = Colors.white.withOpacity(opacity * 0.8);
+      paint.color = Colors.white.withValues(alpha: opacity * 0.8);
       canvas.drawCircle(
         Offset(starPositions[i].dx * size.width, starPositions[i].dy * size.height),
         starSizes[i],

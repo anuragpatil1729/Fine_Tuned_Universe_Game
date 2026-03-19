@@ -1,14 +1,35 @@
+// CHANGES MADE:
+// 1. Updated `main.dart` to include `MultiProvider` for all services.
+// 2. Initialized `CodexService` and `AnomalyService` as they are dependencies for `SimulationService`.
+// 3. Registered `SimulationService` using the correctly injected constructor.
+// 4. Maintained the theme and root navigation to `HomeScreen`.
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/constants.dart';
 import 'services/simulation_service.dart';
+import 'services/codex_service.dart';
+import 'services/anomaly_service.dart';
 import 'screens/home_screen.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => SimulationService(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => CodexService()),
+        ChangeNotifierProxyProvider<CodexService, AnomalyService>(
+          create: (context) => AnomalyService(context.read<CodexService>()),
+          update: (context, codex, previous) => previous ?? AnomalyService(codex),
+        ),
+        ChangeNotifierProxyProvider2<CodexService, AnomalyService, SimulationService>(
+          create: (context) => SimulationService(
+            context.read<CodexService>(),
+            context.read<AnomalyService>(),
+          ),
+          update: (context, codex, anomaly, previous) => previous ?? SimulationService(codex, anomaly),
+        ),
+      ],
       child: const FineTunedUniverseApp(),
     ),
   );
