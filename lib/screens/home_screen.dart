@@ -1,6 +1,6 @@
-// BUG FIXED: Bug 1 - StarfieldPainter regenerates stars every frame.
-// HOW: Moved star positions and sizes generation to initState() so they are computed once. 
-// Passed them as final lists to the painter to ensure visual stability while animating opacity.
+// FIX: StarfieldPainter repaint contradiction.
+// CHANGE: Removed super(repaint: animation) from constructor and set shouldRepaint to true. 
+// This allows the parent AnimatedBuilder to drive repaints while avoiding redundant listener logic.
 
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       duration: const Duration(seconds: 3),
     )..repeat(reverse: true);
 
-    final random = Random(42); // Fixed seed for consistent star placement
+    final random = Random(42); 
     for (int i = 0; i < 150; i++) {
       _starPositions.add(Offset(random.nextDouble(), random.nextDouble()));
       _starSizes.add(random.nextDouble() * 2);
@@ -49,21 +49,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Consumer3<SimulationService, CodexService, AnomalyService>(
       builder: (context, sim, codex, anomaly, child) {
-        final history = sim.history;
-        final survived = history.where((u) => u.outcome == UniverseOutcome.eternalGarden).length;
-
         return Scaffold(
           backgroundColor: GameConstants.spaceBlack,
           body: Stack(
             children: [
-              // Twinkling Starfield
               Positioned.fill(
-                child: CustomPaint(
-                  painter: StarfieldPainter(
-                    animation: _starController,
-                    starPositions: _starPositions,
-                    starSizes: _starSizes,
-                  ),
+                child: AnimatedBuilder(
+                  animation: _starController,
+                  builder: (context, _) {
+                    return CustomPaint(
+                      painter: StarfieldPainter(
+                        animation: _starController,
+                        starPositions: _starPositions,
+                        starSizes: _starSizes,
+                      ),
+                    );
+                  },
                 ),
               ),
               
@@ -127,10 +128,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         _ProgressIndicator(label: "Codex", value: codex.unlockedCount, total: 12),
                       ],
                     ),
-                    if (history.isNotEmpty) ...[
+                    if (sim.history.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       Text(
-                        "Universes created: ${history.length} | Survived: $survived",
+                        "Universes created: ${sim.history.length} | Survived: ${sim.history.where((u) => u.outcome == UniverseOutcome.eternalGarden).length}",
                         style: const TextStyle(color: Colors.white10, fontSize: 10, letterSpacing: 1),
                       ),
                     ],
@@ -178,7 +179,7 @@ class StarfieldPainter extends CustomPainter {
     required this.animation,
     required this.starPositions,
     required this.starSizes,
-  }) : super(repaint: animation);
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -195,5 +196,5 @@ class StarfieldPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant StarfieldPainter oldDelegate) => false;
+  bool shouldRepaint(covariant StarfieldPainter oldDelegate) => true;
 }

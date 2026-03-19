@@ -1,11 +1,10 @@
-// CHANGES MADE:
-// 1. Fixed error in `_paintCosmicFate`: Removed invalid use of `Opacity` widget inside `CustomPainter.paint`. 
-//    Replaced with `canvas.saveLayer` for proper compositing with global opacity.
-// 2. Updated `withOpacity` to `withValues(alpha: ...)` to resolve deprecation warnings and precision loss.
-// 3. Added missing curly braces to `if/else` blocks to satisfy lint rules.
-// 4. Corrected logic in `_paintCosmicFate` to ensure all previous stages are painted with the "breathing" effect at low intensity.
+// FIX: cosmicFate canvas.scale drifts from center.
+// FIX: The universe visual must react to slider changes in real time with smooth interpolation.
+// CHANGE: Added translate-scale-translate pattern to scale from center.
+// CHANGE: Implemented real-time lerp interpolation for display values using a secondary AnimationController.
 
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../core/constants.dart';
 
@@ -31,8 +30,15 @@ class UniverseVisual extends StatefulWidget {
   State<UniverseVisual> createState() => _UniverseVisualState();
 }
 
-class _UniverseVisualState extends State<UniverseVisual> with SingleTickerProviderStateMixin {
+class _UniverseVisualState extends State<UniverseVisual> with TickerProviderStateMixin {
   late AnimationController _controller;
+  late AnimationController _reactController;
+
+  double _displayGravity = 0.5;
+  double _displayNuclear = 0.5;
+  double _displayEm = 0.5;
+  double _displayEntropy = 0.5;
+  double _displayDarkEnergy = 0.5;
 
   @override
   void initState() {
@@ -41,11 +47,79 @@ class _UniverseVisualState extends State<UniverseVisual> with SingleTickerProvid
       vsync: this,
       duration: const Duration(seconds: 20),
     )..repeat();
+
+    _reactController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+
+    _displayGravity = widget.gravity;
+    _displayNuclear = widget.nuclear;
+    _displayEm = widget.em;
+    _displayEntropy = widget.entropy;
+    _displayDarkEnergy = widget.darkEnergy;
+  }
+
+  void _updateDisplayValues() {
+    if (!mounted) return;
+    final t = _reactController.value;
+    final oldG = _displayGravity;
+    final oldN = _displayNuclear;
+    final oldEm = _displayEm;
+    final oldEn = _displayEntropy;
+    final oldDe = _displayDarkEnergy;
+
+    setState(() {
+      _displayGravity = lerpDouble(oldG, widget.gravity, t) ?? widget.gravity;
+      _displayNuclear = lerpDouble(oldN, widget.nuclear, t) ?? widget.nuclear;
+      _displayEm = lerpDouble(oldEm, widget.em, t) ?? widget.em;
+      _displayEntropy = lerpDouble(oldEn, widget.entropy, t) ?? widget.entropy;
+      _displayDarkEnergy = lerpDouble(oldDe, widget.darkEnergy, t) ?? widget.darkEnergy;
+    });
+  }
+
+  @override
+  void didUpdateWidget(UniverseVisual oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    if (oldWidget.gravity != widget.gravity ||
+        oldWidget.nuclear != widget.nuclear ||
+        oldWidget.em != widget.em ||
+        oldWidget.entropy != widget.entropy ||
+        oldWidget.darkEnergy != widget.darkEnergy) {
+      
+      final startG = _displayGravity;
+      final startN = _displayNuclear;
+      final startEm = _displayEm;
+      final startEn = _displayEntropy;
+      final startDe = _displayDarkEnergy;
+      
+      _reactController.stop();
+      _reactController.reset();
+      
+      void listener() {
+        if (!mounted) return;
+        final t = _reactController.value;
+        setState(() {
+          _displayGravity = lerpDouble(startG, widget.gravity, t)!;
+          _displayNuclear = lerpDouble(startN, widget.nuclear, t)!;
+          _displayEm = lerpDouble(startEm, widget.em, t)!;
+          _displayEntropy = lerpDouble(startEn, widget.entropy, t)!;
+          _displayDarkEnergy = lerpDouble(startDe, widget.darkEnergy, t)!;
+        });
+      }
+
+      _reactController.addListener(listener);
+      _reactController.forward().then((_) {
+        _reactController.removeListener(listener);
+      });
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _reactController.dispose();
     super.dispose();
   }
 
@@ -59,11 +133,11 @@ class _UniverseVisualState extends State<UniverseVisual> with SingleTickerProvid
           painter: UniversePainter(
             stage: widget.stage,
             animationValue: _controller.value,
-            gravity: widget.gravity,
-            nuclear: widget.nuclear,
-            em: widget.em,
-            entropy: widget.entropy,
-            darkEnergy: widget.darkEnergy,
+            gravity: _displayGravity,
+            nuclear: _displayNuclear,
+            em: _displayEm,
+            entropy: _displayEntropy,
+            darkEnergy: _displayDarkEnergy,
           ),
         );
       },
@@ -138,11 +212,9 @@ class UniversePainter extends CustomPainter {
       double dist = (i * 2.0) * expansion;
       
       if (gravity > 0.65) {
-        // Spiral inward
         dist *= (1.0 - expansion);
         angle += expansion * 10;
       } else if (gravity < 0.35) {
-        // Drift off
         dist *= (1.0 + expansion);
       }
 
@@ -169,7 +241,6 @@ class UniversePainter extends CustomPainter {
       final paint = Paint()..color = starColor.withValues(alpha: brightness.clamp(0.0, 1.0));
       
       if (nuclear > 0.70) {
-        // Pulse rapidly and flare
         double flare = (sin(animationValue * 200) + 1) / 2;
         canvas.drawCircle(Offset(x, y), 2 + flare * 4, paint..color = Colors.white.withValues(alpha: flare));
       } else {
@@ -177,7 +248,6 @@ class UniversePainter extends CustomPainter {
       }
     }
 
-    // Hero Stars
     for (int i = 0; i < 3; i++) {
       Offset pos = Offset(size.width * (0.2 + i * 0.3), size.height * (0.3 + i * 0.2));
       _drawHeroStar(canvas, pos, nuclear);
@@ -205,11 +275,9 @@ class UniversePainter extends CustomPainter {
       double angle = t * 4 * pi + rotation;
       double dist = t * 150;
       
-      // Two arms
       for (int arm = 0; arm < 2; arm++) {
         double currentAngle = angle + (arm * pi);
         if (em < 0.35) {
-          // Dissolve
           currentAngle += random.nextDouble() * 2;
           dist += random.nextDouble() * 50;
         }
@@ -222,11 +290,8 @@ class UniversePainter extends CustomPainter {
 
   void _paintLifeAge(Canvas canvas, Offset center, Size size, Random random) {
     double pulse = (sin(animationValue * 50 * entropy) + 1) / 2;
-    
-    // Planet
     canvas.drawCircle(center, 40, Paint()..color = Colors.blueGrey);
     
-    // Halo
     final haloPaint = Paint()
       ..color = GameConstants.lifeGreen.withValues(alpha: 0.4)
       ..maskFilter = MaskFilter.blur(BlurStyle.normal, 10 + pulse * 10);
@@ -258,7 +323,6 @@ class UniversePainter extends CustomPainter {
     double expansion = 40 + (animationValue * 40);
     canvas.drawCircle(center, expansion, Paint()..color = Colors.red.withValues(alpha: 0.4));
     
-    // Nebula
     for (int i = 0; i < 10; i++) {
       double scale = 1.0;
       if (darkEnergy > 0.6) {
@@ -277,7 +341,6 @@ class UniversePainter extends CustomPainter {
       canvas.restore();
     }
 
-    // White dwarfs
     for (int i = 0; i < 3; i++) {
       canvas.drawCircle(Offset(center.dx + i * 10 - 10, center.dy + 5), 2, Paint()..color = Colors.white);
     }
@@ -285,17 +348,19 @@ class UniversePainter extends CustomPainter {
 
   void _paintCosmicFate(Canvas canvas, Offset center, Size size, Random random) {
     double breath = (sin(animationValue * pi / 2) + 1) / 2;
-    canvas.save();
-    canvas.scale(0.9 + breath * 0.2);
     
-    // Composite view at low opacity using saveLayer
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(0.9 + breath * 0.2);
+    canvas.translate(-center.dx, -center.dy);
+    
     canvas.saveLayer(null, Paint()..color = Colors.white.withValues(alpha: 0.2));
     _paintCosmicDawn(canvas, center, size);
     _paintStellarAge(canvas, size, random);
     _paintGalacticAge(canvas, center, size, random);
-    canvas.restore(); // Restores the saveLayer
+    canvas.restore(); 
     
-    canvas.restore(); // Restores the initial scale save
+    canvas.restore(); 
   }
 
   @override
