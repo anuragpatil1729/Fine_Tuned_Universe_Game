@@ -1,11 +1,11 @@
-// BUG FIXED: Bug 6 - Mirror Universe safe zones never passed to slider.
-// HOW: Implemented computed safe zone getters for ALL 5 constants. 
-// Added inversion logic for the Mirror Universe anomaly where danger zones become safe zones.
+// WHAT: Added DNA generation during finalization and a DNA loading method.
+// WHY: To enable persistent universe identification and reproduction via 6-char seeds.
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../core/constants.dart';
 import '../core/simulation_engine.dart';
+import '../core/universe_dna.dart';
 import '../models/universe_state.dart';
 import '../models/anomaly.dart';
 import 'codex_service.dart';
@@ -159,14 +159,37 @@ class SimulationService extends ChangeNotifier {
       _currentUniverse.darkEnergyPressure,
     );
 
+    final dna = UniverseDNA.generate(
+      _currentUniverse.gravity,
+      _currentUniverse.nuclearForce,
+      _currentUniverse.emForce,
+      _currentUniverse.entropyRate,
+      _currentUniverse.darkEnergyPressure,
+    );
+
     _currentUniverse = _currentUniverse.copyWith(
       outcome: outcome,
       stage: UniverseStage.cosmicFate,
+      dna: dna,
     );
 
     _history.add(_currentUniverse);
     _codexService.checkAndUnlock(_currentUniverse, _currentUniverse.stage);
     _anomalyService.checkCompletion(outcome);
+    notifyListeners();
+  }
+
+  void loadFromDNA(Map<String, double> constants) {
+    _driftTimer?.cancel();
+    _currentUniverse = UniverseState(
+      gravity: constants['gravity'] ?? 0.5,
+      emForce: constants['em'] ?? 0.5,
+      nuclearForce: constants['nuclear'] ?? 0.5,
+      entropyRate: constants['entropy'] ?? 0.5,
+      darkEnergyPressure: constants['darkEnergy'] ?? 0.5,
+      outcome: UniverseOutcome.none,
+      stage: UniverseStage.cosmicDawn,
+    );
     notifyListeners();
   }
 
